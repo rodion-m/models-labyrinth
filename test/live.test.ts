@@ -4,6 +4,7 @@ import { collectBenchLM } from "../src/sources/benchlm.js";
 import { collectModelsDev } from "../src/sources/models-dev.js";
 import { collectOpenRouter } from "../src/sources/openrouter.js";
 import { collectArtificialAnalysis } from "../src/sources/artificial-analysis.js";
+import { collectVals } from "../src/sources/vals.js";
 
 const live = process.env.LIVE_TESTS === "1";
 
@@ -29,4 +30,15 @@ test("live Artificial Analysis contract is key-gated", { skip: !live || !process
   const result = await collectArtificialAnalysis();
   assert.equal(result.status, "ok");
   assert.ok(result.records.length > 0);
+});
+
+test("live Vals static benchmark snapshot contract", { skip: !live }, async () => {
+  const result = await collectVals();
+  assert.equal(result.status, "ok");
+  assert.ok(result.records.length > 0);
+  assert.ok((result.benchmark_definitions?.length ?? 0) >= 39);
+  assert.equal(result.warnings?.length ?? 0, 0);
+  const observations = result.records.flatMap((record) => record.benchmarks ?? []);
+  assert.ok(observations.some((row) => row.benchmark_id === "vals.rsi_index" && row.evidence.status === "derived"));
+  assert.ok(observations.some((row) => row.benchmark_id === "vals.poker_agent" && row.metric === "trueskill_rating" && row.unit === "rating"));
 });

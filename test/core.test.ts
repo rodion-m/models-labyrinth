@@ -13,6 +13,7 @@ import { writeSnapshotAtomic } from "../src/storage.js";
 import { MODELS_DB_SCHEMA, assertSnapshotShape } from "../src/schema.js";
 import { collectOpenRouter } from "../src/sources/openrouter.js";
 import { collectBenchGecko, collectCloudPrice } from "../src/sources/enrichment.js";
+import { collectVals, parseValsBenchmarkPage, parseValsCatalog, parseValsRsiBundle } from "../src/sources/vals.js";
 import type { Snapshot, SourceRecord, SourceResult } from "../src/types.js";
 
 test("price normalization preserves dimensions, units, zero and variable values", () => {
@@ -49,14 +50,16 @@ test("benchmark aliases share one canonical identity without losing source prove
   record.benchmarks = [
     { benchmark_id: "agentic.terminalBench21", value: 42, evidence: record.evidence![0] },
     { benchmark_id: "coding.terminalBench21", value: 42, evidence: record.evidence![0] },
+    { benchmark_id: "terminalBench21", value: 42, evidence: record.evidence![0] },
+    { benchmark_id: "vals.terminal-bench-2-1", value: 42, evidence: record.evidence![0] },
   ];
   const snapshot = mergeSnapshots(undefined, [result("benchlm", [record])], "2026-08-26T00:00:00.000Z");
   assert.equal(snapshot.models[0].benchmarks.length, 1);
   assert.equal(snapshot.models[0].benchmarks[0].benchmark_id, "coding.terminalBench21");
   assert.equal(snapshot.models[0].benchmarks[0].kind, "benchmark");
-  assert.deepEqual(snapshot.models[0].benchmarks[0].source_benchmark_ids, ["agentic.terminalBench21", "coding.terminalBench21"]);
+  assert.deepEqual(snapshot.models[0].benchmarks[0].source_benchmark_ids, ["agentic.terminalBench21", "coding.terminalBench21", "terminalBench21", "vals.terminal-bench-2-1"]);
   assert.equal(listBenchmarks(snapshot).length, 1);
-  assert.deepEqual(listBenchmarks(snapshot)[0].aliases, ["agentic.terminalBench21"]);
+  assert.deepEqual(listBenchmarks(snapshot)[0].aliases, ["agentic.terminalBench21", "terminalBench21", "vals.terminal-bench-2-1"]);
   assert.equal(listModels(snapshot, new URLSearchParams("benchmark=agentic.terminalBench21")).data.length, 1);
 });
 
@@ -68,6 +71,17 @@ test("a refreshed raw benchmark replaces its old value while distinct source obs
   newRecord.benchmarks = [{ benchmark_id: "coding.terminalBench21", value: 42, evidence: { ...newRecord.evidence![0], fetched_at: "2026-08-26T12:00:00.000Z" } }];
   const current = mergeSnapshots(previous, [result("benchlm", [newRecord])], "2026-08-26T12:00:00.000Z");
   assert.deepEqual(current.models[0].benchmarks.map((value) => value.value), [42]);
+});
+
+test("source-specific benchmark evaluators remain distinct after identity canonicalization", () => {
+  const record = sourceRecord("benchlm", "openai/gpt-4o", "GPT-4o", "https://benchlm.example", "offer");
+  record.benchmarks = [
+    { benchmark_id: "coding.sciCode", value: 42, evidence: record.evidence![0] },
+    { benchmark_id: "coding.aaSciCode", value: 42, evidence: record.evidence![0] },
+  ];
+  const snapshot = mergeSnapshots(undefined, [result("benchlm", [record])], "2026-08-26T00:00:00.000Z");
+  assert.equal(snapshot.models[0].benchmarks.length, 2);
+  assert.deepEqual(snapshot.models[0].benchmarks.map((row) => row.evaluator).sort(), ["artificial_analysis", undefined].sort());
 });
 
 test("derived catalog scores are explicitly classified as aggregates", () => {
@@ -231,6 +245,124 @@ test("secondary catalog adapters follow their documented pagination", async () =
   assert.equal(calls.filter((url) => url.includes("cloudprice.net")).length, 2);
 });
 
+test("Vals static snapshot parser extracts business benchmark results and run conditions", async () => {
+  const view = {
+    metadata: { benchmark: "Excel Modeling Benchmark", slug: "emb", benchmark_id: "emb", version: "1", updated: "2026-08-19", dataset_type: "private", industry: "finance", description: "Build financial models." },
+    tasks: { overall: { "openai/gpt-5.6-sol": { accuracy: 72.3, latency: 900, stderr: 1.2, cost_per_test: 6.01, reasoning_effort: "max", temperature: 1, provider: "OpenAI" } } },
+  };
+  const page = valsPage(view);
+  assert.deepEqual(parseValsCatalog('<a href="/benchmarks/emb">EMB</a><a href="/benchmarks/emb">duplicate</a>'), ["emb"]);
+  assert.equal(parseValsBenchmarkPage(page).metadata.slug, "emb");
+  const collected = await collectVals({
+    benchmarkLimit: 1,
+    fetchImpl: async (input) => new Response(String(input).endsWith("/benchmarks") ? '<a href="/benchmarks/emb">EMB</a>' : page, { status: 200 }),
+  });
+  assert.equal(collected.status, "ok");
+  assert.equal(collected.records.length, 1);
+  assert.deepEqual(collected.records[0].benchmarks?.[0], {
+    benchmark_id: "vals.emb",
+    value: 72.3,
+    unit: "percent",
+    metric: "score",
+    effort: "max",
+    evaluator: "vals",
+    dataset_version: "1",
+    metrics: { latency: 900, stderr: 1.2, cost_per_test: 6.01 },
+    configuration: { temperature: 1, reasoning_effort: "max", provider: "OpenAI" },
+    evidence: collected.records[0].benchmarks?.[0].evidence,
+  });
+  assert.equal(collected.benchmark_definitions?.[0].category, "finance");
+});
+
+test("Vals RSI custom bundle is parsed as an explicit normalized index", async () => {
+  const bundle = 'const H=["openai/gpt-test"],D={"openai/gpt-test":{compression:.5,post_training:0}},z=[{key:"compression",models:{"openai/gpt-test":{score:.5,result:"1.4 BPB",status:"valid",experiments:2,tokens:"1M",api_cost_usd:3.5}}}],G={models:H,capability:D,tasks:z},U={"openai/gpt-test":{harness:"Codex",effort:"max",headline:"Methodical"}};';
+  const html = '<meta name="description" content="AI research"><div>Updated 8/12/2026</div><astro-island component-url="/_astro/RsiBenchmarkView.test.js" props="{}"></astro-island>';
+  const parsed = parseValsRsiBundle(bundle, html);
+  assert.deepEqual(parsed.tasks.overall["openai/gpt-test"], {
+    value: 0.25,
+    metric: "normalized_score",
+    unit: "fraction",
+    derived: true,
+    reasoning_effort: "max",
+    harness: "Codex",
+  });
+  const collected = await collectVals({
+    fetchImpl: async (input) => {
+      const url = String(input);
+      if (url.endsWith("/benchmarks")) return new Response('<a href="/benchmarks/rsi_index">RSI</a>');
+      if (url.endsWith(".js")) return new Response(bundle);
+      return new Response(html);
+    },
+  });
+  assert.equal(collected.warnings?.length ?? 0, 0);
+  assert.equal(collected.benchmark_definitions?.[0].kind, undefined);
+  assert.equal(collected.benchmark_definitions?.[0].updated_at, "2026-08-12");
+  assert.equal(collected.records[0].benchmarks?.[0].metric, "normalized_score");
+  assert.equal(collected.records[0].benchmarks?.[0].unit, "fraction");
+  assert.equal(collected.records[0].benchmarks?.[0].evidence.status, "derived");
+  assert.equal(collected.records[0].benchmarks?.find((row) => row.variant === "compression")?.metrics?.api_cost_usd, 3.5);
+});
+
+test("Vals keeps non-percent metrics explicit and does not promote unmatched systems to exact models", async () => {
+  const view = {
+    metadata: { benchmark: "Agent Poker Bench", slug: "poker_agent", benchmark_id: "poker_agent", version: "1", dataset_type: "private", industry: "beta", accuracy_label: "TrueSkill Rating" },
+    tasks: { overall: { "grok/grok-4.6": { accuracy: 1131.8, cost_per_test: 0.01 } } },
+  };
+  const staleVals = sourceRecord("vals", "grok/grok-4.6", "Grok duplicate", "https://www.vals.ai/benchmarks", "unused");
+  staleVals.offers = [];
+  const previous = mergeSnapshots(undefined, [
+    result("models_dev", [sourceRecord("models_dev", "x-ai/grok-4.6", "Grok 4.6", "https://models.dev", "offer")]),
+    result("vals", [staleVals]),
+  ], "2026-08-26T00:00:00.000Z");
+  const collected = await collectVals({
+    previous,
+    fetchImpl: async (input) => new Response(String(input).endsWith("/benchmarks") ? '<a href="/benchmarks/poker_agent">Poker</a>' : valsPage(view)),
+  });
+  assert.match(collected.records[0].id, /^unresolved\/vals\//);
+  assert.equal(collected.records[0].identity_confidence, "unresolved");
+  assert.equal(collected.records[0].benchmarks?.[0].metric, "trueskill_rating");
+  assert.equal(collected.records[0].benchmarks?.[0].unit, "rating");
+});
+
+test("Vals preserves task-specific professional benchmark metric semantics", async () => {
+  const views: Record<string, Record<string, unknown>> = {
+    programbench: { metadata: { benchmark: "ProgramBench", slug: "programbench" }, tasks: { overall: { "openai/gpt-test": { accuracy: 3 } }, partial: { "openai/gpt-test": { accuracy: 82 } } } },
+    hlab: { metadata: { benchmark: "HLAB", slug: "hlab", benchmark_id: "legal_agent_benchmark" }, tasks: { overall: { "openai/gpt-test": { accuracy: 25 } }, criteria_pass_rate: { "openai/gpt-test": { accuracy: 98 } } } },
+    time_horizon_index: { metadata: { benchmark: "Time Horizon", slug: "time_horizon_index" }, tasks: { overall: { "openai/gpt-test": { accuracy: 13.7 } } } },
+  };
+  const collected = await collectVals({
+    fetchImpl: async (input) => {
+      const url = String(input);
+      if (url.endsWith("/benchmarks")) return new Response(Object.keys(views).map((slug) => `<a href="/benchmarks/${slug}">${slug}</a>`).join(""));
+      return new Response(valsPage(views[url.split("/").at(-1)!]));
+    },
+  });
+  const observations = collected.records[0].benchmarks ?? [];
+  assert.equal(observations.find((row) => row.benchmark_id === "vals.programbench" && row.variant === undefined)?.metric, "fully_resolved_rate");
+  assert.equal(observations.find((row) => row.benchmark_id === "vals.programbench" && row.variant === "partial")?.metric, "raw_pass_rate");
+  assert.equal(observations.find((row) => row.benchmark_id === "vals.hlab" && row.variant === "criteria_pass_rate")?.metric, "criteria_pass_rate");
+  assert.equal(observations.find((row) => row.benchmark_id === "vals.time_horizon_index")?.metric, "mission_progress");
+});
+
+test("source replacement removes stale Vals-only models and canonical definitions keep their first authoritative fields", () => {
+  const staleVals = sourceRecord("vals", "grok/grok-4.6", "Grok duplicate", "https://www.vals.ai/benchmarks", "unused");
+  staleVals.offers = [];
+  const previous = mergeSnapshots(undefined, [{ ...result("vals", [staleVals]), benchmark_definitions: [{ id: "vals.swebench", name: "SWE-bench", evidence: staleVals.evidence![0] }] }], "2026-08-26T00:00:00.000Z");
+  const currentVals: SourceResult = { ...result("vals", []), replace_previous: true, records: [] };
+  const benchlm: SourceResult = {
+    ...result("benchlm", []),
+    benchmark_definitions: [{ id: "sweVerified", name: "SWE-bench Verified", url: "https://benchlm.example/swe", evidence: { source_id: "benchlm", url: "https://benchlm.example/swe", fetched_at: "2026-08-26T01:00:00.000Z", status: "observed" } }],
+  };
+  const valsDefinition: SourceResult = {
+    ...currentVals,
+    benchmark_definitions: [{ id: "vals.swebench", name: "SWE-bench", url: "https://www.vals.ai/benchmarks/swebench", evidence: { source_id: "vals", url: "https://www.vals.ai/benchmarks/swebench", fetched_at: "2026-08-26T01:00:00.000Z", status: "observed" } }],
+  };
+  const snapshot = mergeSnapshots(previous, [benchlm, valsDefinition], "2026-08-26T01:00:00.000Z");
+  assert.equal(snapshot.models.some((model) => model.id === "grok/grok-4.6"), false);
+  assert.equal(snapshot.benchmarks[0].name, "SWE-bench Verified");
+  assert.equal(snapshot.benchmarks[0].url, "https://benchlm.example/swe");
+});
+
 test("schema describes the snapshot and shape guard validates hashless fixtures", () => {
   assert.equal(MODELS_DB_SCHEMA.$schema, "https://json-schema.org/draft/2020-12/schema");
   assertSnapshotShape({ schema_version: "1.0", generated_at: "2026-08-26T00:00:00.000Z", content_hash: "", workload_profiles: [], sources: [], benchmarks: [], models: [] } satisfies Snapshot);
@@ -259,4 +391,15 @@ function sourceRecord(sourceId: string, rawId: string, name: string, url: string
     measurements: [],
     evidence: [{ source_id: sourceId, url, fetched_at: "2026-08-26T00:00:00.000Z", status: "observed" }],
   };
+}
+
+function valsPage(view: Record<string, unknown>): string {
+  const props = JSON.stringify({ benchmarkView: astroEncode(view) }).replaceAll("&", "&amp;").replaceAll('"', "&quot;");
+  return `<astro-island component-url="/_astro/BenchmarkView.test.js" props="${props}"></astro-island>`;
+}
+
+function astroEncode(value: unknown): unknown {
+  if (Array.isArray(value)) return [1, value.map(astroEncode)];
+  if (value && typeof value === "object") return [0, Object.fromEntries(Object.entries(value).map(([key, child]) => [key, astroEncode(child)]))];
+  return [0, value];
 }

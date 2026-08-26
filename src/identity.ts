@@ -40,8 +40,12 @@ export function canonicalModelId(input: {
   if (publisher !== "unknown" && base !== "unknown") {
     return { id: `${publisher}/${base}`, sourceModelId, variant: split.variant, confidence: "alias" };
   }
-  const digest = createHash("sha256").update(`${input.sourceId}:${sourceModelId}`).digest("hex").slice(0, 16);
-  return { id: `unresolved/${input.sourceId}/${digest}`, sourceModelId, variant: split.variant, confidence: "unresolved" };
+  return { id: unresolvedModelId(input.sourceId, sourceModelId), sourceModelId, variant: split.variant, confidence: "unresolved" };
+}
+
+export function unresolvedModelId(sourceId: string, sourceModelId: string): string {
+  const digest = createHash("sha256").update(`${sourceId}:${sourceModelId}`).digest("hex").slice(0, 16);
+  return `unresolved/${sourceId}/${digest}`;
 }
 
 export function alias(id: string, sourceId: string, kind = "source_id") {

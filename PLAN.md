@@ -14,7 +14,7 @@ not interchangeable.
 
 ## Model-selection navigation
 
-The repository also ships the `models-that-fits-my-task` agent skill. Its
+The repository also ships the `model-that-fits-my-task` agent skill. Its
 selection flow has four bounded routes:
 
 1. **Quick fit** discovers facets, requests compact model summaries, and opens
@@ -113,6 +113,11 @@ it is never presented as a new benchmark measurement.
 - Artificial Analysis free API when `AA_API_KEY` is available: headline
   indices, median performance, and model pricing. This project is internal;
   source attribution and the account's internal-use terms still apply.
+- Vals public benchmark pages: professional finance, legal, healthcare,
+  education, coding, agentic, and academic results together with published
+  evaluation conditions and workload spend. There is no documented public
+  leaderboard read API, so the adapter reads bounded static Astro payloads
+  and reports page-contract failures without erasing the prior snapshot.
 - Epoch AI public model/benchmark downloads: independent benchmark and
   model-compute metadata where the join is strong enough. It is an enrichment
   source and may remain unmatched instead of causing a risky fuzzy merge.
@@ -280,6 +285,7 @@ is:
 | [Models.dev](https://models.dev) | model/provider facts, limits, modalities, structured output, tools, reasoning options, cache/audio/tier prices |
 | [BenchLM data](https://www.benchlm.ai/data) | benchmark/price/speed snapshot; preserve its own aggregation and mark AA-derived rows |
 | [Artificial Analysis Data API](https://artificialanalysis.ai/data-api/docs) | key-gated indices, median performance, and pricing; useful internally when the account tier permits it |
+| [Vals benchmarks](https://www.vals.ai/benchmarks) | professional and agentic benchmark snapshots, including task variants and published effort, harness, provider, latency, token, and workload-spend conditions; static page contract rather than a documented read API |
 | [Epoch AI benchmark data](https://epoch.ai/benchmarks/use-this-data) | independent benchmark/model-compute context, with explicit attribution and conservative identity joins |
 | [Portkey pricing configs](https://github.com/Portkey-AI/models) | optional extra price dimensions such as batch/cache/audio/image/search/thinking; no quality or runtime claims |
 | BenchGecko, ModelCap, CloudPrice | optional derived cross-checks; never count their overlapping AA/OpenRouter values as independent measurements |

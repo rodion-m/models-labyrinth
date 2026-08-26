@@ -30,20 +30,32 @@ export function mergeSnapshots(previous: Snapshot | undefined, results: SourceRe
   }
 
   for (const result of results) {
+    if (result.status !== "ok" || !result.replace_previous) continue;
+    for (const [id, model] of modelMap) {
+      const stripped = withoutSource(model, result.source_id);
+      if (hasModelData(stripped)) modelMap.set(id, stripped);
+      else modelMap.delete(id);
+    }
+    for (const [id, benchmark] of benchmarkMap) {
+      if (benchmark.evidence.source_id === result.source_id
+        || benchmark.aliases?.some((alias) => alias.toLowerCase().startsWith(`${result.source_id.toLowerCase()}.`))) {
+        benchmarkMap.delete(id);
+      }
+    }
+  }
+
+  for (const result of results) {
     if (result.status !== "ok") continue;
     for (const record of result.records) {
-      const incoming = asModelRecord(record);
-      const current = modelMap.get(incoming.id);
-      modelMap.set(incoming.id, current ? mergeModel(current, incoming) : normalizeModel(incoming));
+      const current = modelMap.get(record.id);
+      modelMap.set(record.id, current ? mergeModel(current, record) : normalizeModel(asModelRecord(record)));
     }
     for (const rawBenchmark of result.benchmark_definitions ?? []) {
       const benchmark = canonicalizeBenchmarkDefinition(rawBenchmark);
       const current = benchmarkMap.get(benchmark.id);
       benchmarkMap.set(benchmark.id, current ? {
         ...current,
-        ...benchmark,
         aliases: [...new Set([...(current.aliases ?? []), ...(benchmark.aliases ?? [])])].sort(),
-        evidence: mergeSingleEvidence(current.evidence, benchmark.evidence),
       } : benchmark);
     }
   }
@@ -109,10 +121,12 @@ function normalizeModel(model: Model): Model {
   };
 }
 
-function mergeModel(current: Model, incoming: Model): Model {
+function mergeModel(current: Model, record: SourceRecord): Model {
+  const incoming = asModelRecord(record);
   return normalizeModel({
     ...current,
-    ...pickDefined(incoming),
+    ...pickDefined(record),
+    id: current.id,
     identity_confidence: CONFIDENCE_RANK[incoming.identity_confidence] > CONFIDENCE_RANK[current.identity_confidence]
       ? incoming.identity_confidence
       : current.identity_confidence,
@@ -187,7 +201,7 @@ function offerKey(value: Offer): string {
 }
 
 function benchmarkKey(value: Model["benchmarks"][number]): string {
-  return `${value.evidence.source_id}:${value.benchmark_id}:${value.variant ?? ""}:${value.effort ?? ""}:${value.metric ?? ""}:${value.unit ?? ""}:${value.value}`;
+  return `${value.evidence.source_id}:${value.benchmark_id}:${value.variant ?? ""}:${value.effort ?? ""}:${value.evaluator ?? ""}:${value.dataset_version ?? ""}:${value.metric ?? ""}:${value.unit ?? ""}:${JSON.stringify(stableValue(value.configuration ?? {}))}:${value.value}`;
 }
 
 function mergeBenchmarkObservations(values: Model["benchmarks"]): Model["benchmarks"] {
@@ -240,14 +254,29 @@ function mergeEvidence(current: Evidence[], incoming: Evidence[] = []): Evidence
   return [...map.values()].sort((a, b) => `${a.source_id}:${a.url}`.localeCompare(`${b.source_id}:${b.url}`));
 }
 
-function mergeSingleEvidence(current: Evidence, incoming: Evidence): Evidence {
-  return [...mergeEvidence([current], [incoming])].at(-1) ?? incoming;
-}
-
 function mergeByKey<T>(current: T[], incoming: T[], key: (value: T) => string): T[] {
   const map = new Map<string, T>();
   for (const item of [...current, ...incoming]) map.set(key(item), item);
   return [...map.values()];
+}
+
+function withoutSource(model: Model, sourceId: string): Model {
+  return normalizeModel({
+    ...model,
+    aliases: model.aliases.filter((value) => value.source_id !== sourceId),
+    reasoning: model.reasoning.filter((value) => value.source_id !== sourceId),
+    offers: model.offers.filter((value) => !value.evidence.some((item) => item.source_id === sourceId)),
+    benchmarks: model.benchmarks.filter((value) => value.evidence.source_id !== sourceId),
+    pricing_observations: model.pricing_observations.filter((value) => value.evidence.source_id !== sourceId),
+    runtime_observations: model.runtime_observations.filter((value) => value.evidence.source_id !== sourceId),
+    measurements: model.measurements.filter((value) => value.evidence.source_id !== sourceId),
+    evidence: model.evidence.filter((value) => value.source_id !== sourceId),
+  });
+}
+
+function hasModelData(model: Model): boolean {
+  return model.evidence.length > 0 || model.offers.length > 0 || model.benchmarks.length > 0
+    || model.pricing_observations.length > 0 || model.runtime_observations.length > 0 || model.measurements.length > 0;
 }
 
 function mergeCapabilities(...values: Array<Record<string, boolean | null>>): Record<string, boolean | null> {

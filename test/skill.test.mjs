@@ -5,7 +5,7 @@ import {
   DEFAULT_BASE,
   parseArgs,
   validateBundle,
-} from "../.agents/skills/models-that-fits-my-task/scripts/download-snapshot.mjs";
+} from "../.agents/skills/model-that-fits-my-task/scripts/download-snapshot.mjs";
 
 const schema = { $defs: {}, properties: { schema_version: { const: "1.0" } } };
 const snapshot = {
@@ -45,7 +45,7 @@ test("snapshot downloader rejects mismatched or unhealthy data", () => {
 });
 
 test("live snapshot and schema remain mutually consistent", { skip: process.env.LIVE_TESTS !== "1", timeout: 180_000 }, async () => {
-  const { download } = await import("../.agents/skills/models-that-fits-my-task/scripts/download-snapshot.mjs");
+  const { download } = await import("../.agents/skills/model-that-fits-my-task/scripts/download-snapshot.mjs");
   const { mkdtemp, rm } = await import("node:fs/promises");
   const { tmpdir } = await import("node:os");
   const { join } = await import("node:path");

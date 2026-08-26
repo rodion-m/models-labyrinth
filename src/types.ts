@@ -52,6 +52,8 @@ export interface BenchmarkObservation {
   evaluator?: string;
   dataset_version?: string;
   sample_count?: number;
+  metrics?: Record<string, number | string | boolean | null>;
+  configuration?: Record<string, number | string | boolean | null>;
   evidence: Evidence;
 }
 
@@ -63,6 +65,9 @@ export interface BenchmarkDefinition {
   category?: string;
   description?: string;
   year?: number;
+  version?: string;
+  updated_at?: string;
+  dataset_type?: string;
   url?: string;
   evidence: Evidence;
 }
@@ -177,6 +182,7 @@ export interface SourceResult {
   records: SourceRecord[];
   benchmark_definitions?: BenchmarkDefinition[];
   warnings?: string[];
+  replace_previous?: boolean;
   error?: string;
 }
 

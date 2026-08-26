@@ -31,6 +31,13 @@ test("selection endpoints expose compact model summaries and discoverable facets
   assert.ok(Array.isArray((facetsResponse.body as any).data.reasoning_efforts));
 });
 
+test("full model pages are capped below the serverless response limit", () => {
+  const response = fakeResponse();
+  modelsHandler({ url: "/api/v1/models?limit=100" }, response);
+  assert.equal((response.body as any).meta.limit, 10);
+  assert.equal((response.body as any).data.length, 10);
+});
+
 test("benchmark catalog filters canonical entries by kind and alias query", () => {
   const response = fakeResponse();
   benchmarksHandler({ url: "/api/v1/benchmarks?kind=benchmark&q=terminal" }, response);

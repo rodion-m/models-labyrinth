@@ -7,7 +7,7 @@ reads make no network requests.
 
 ## Model-selection skill
 
-The repository includes [`models-that-fits-my-task`](.agents/skills/models-that-fits-my-task/SKILL.md),
+The repository includes [`model-that-fits-my-task`](.agents/skills/model-that-fits-my-task/SKILL.md),
 an agent skill that turns a workload description into an evidence-backed model
 and provider-route recommendation. It uses the filtered API for ordinary
 decisions and downloads the full snapshot together with its JSON Schema only
@@ -61,6 +61,12 @@ Conflicts are not collapsed into an invented single rating.
   — headline indices, median performance, and pricing when `AA_API_KEY` is
   available. The key is never stored in git or the snapshot; this deployment
   is intended for internal use.
+- [Vals benchmarks](https://www.vals.ai/benchmarks) — public evaluation
+  snapshots for finance, legal, healthcare, education, coding, agentic, and
+  academic tasks, including run-level effort, harness, provider, latency,
+  token, and workload-spend fields when published. Vals has no documented
+  public leaderboard read API, so the refresh reads the structured Astro page
+  payloads and fails visibly if their contract changes.
 - [Epoch AI](https://epoch.ai/benchmarks/use-this-data) — independent
   benchmark and model-compute context with conservative identity joins.
 - [Portkey models](https://github.com/Portkey-AI/models) — pricing supplement
@@ -108,7 +114,8 @@ All collection endpoints return an envelope with `data` and `meta`:
 Model filters cover id/name/alias, provider, capability, reasoning effort,
 modality, quantization, source, benchmark, open weights, minimum context, and sorting.
 Use `view=summary` for broad candidate discovery; fetch full records only for
-the shortlist. Repeated or comma-separated capabilities are ANDed. Repeated
+the shortlist. Summary pages are capped at 100 rows; full-record pages are
+capped at 10 to stay safely below serverless response limits. Repeated or comma-separated capabilities are ANDed. Repeated
 providers, efforts, quantizations, and sources are ORed. Provider values are
 exact provider ids; use `/providers` to discover them.
 

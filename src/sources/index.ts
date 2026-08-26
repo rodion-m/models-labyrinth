@@ -4,6 +4,7 @@ import { collectBenchLM } from "./benchlm.js";
 import { collectModelsDev } from "./models-dev.js";
 import { collectOpenRouter } from "./openrouter.js";
 import { collectBenchGecko, collectCloudPrice, collectEpoch, collectModelCap, collectPortkey } from "./enrichment.js";
+import { collectVals } from "./vals.js";
 
 export interface SourceAdapter {
   source_id: string;
@@ -21,4 +22,5 @@ export const SOURCE_ADAPTERS: SourceAdapter[] = [
   { source_id: "benchgecko", url: "https://benchgecko.ai/api/v1/models", collect: collectBenchGecko },
   { source_id: "modelcap", url: "https://modelcap.ai/data/models.json", collect: collectModelCap },
   { source_id: "cloudprice", url: "https://ai.cloudprice.net/api/v1/models", collect: collectCloudPrice },
+  { source_id: "vals", url: "https://www.vals.ai/benchmarks", collect: collectVals },
 ];

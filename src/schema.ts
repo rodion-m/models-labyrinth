@@ -76,6 +76,8 @@ export const MODELS_DB_SCHEMA = {
         evaluator: { type: "string" },
         dataset_version: { type: "string" },
         sample_count: { type: "integer", minimum: 0 },
+        metrics: { type: "object", additionalProperties: { type: ["number", "string", "boolean", "null"] } },
+        configuration: { type: "object", additionalProperties: { type: ["number", "string", "boolean", "null"] } },
         evidence: { $ref: "#/$defs/evidence" },
       },
       additionalProperties: true,
@@ -150,7 +152,7 @@ export const MODELS_DB_SCHEMA = {
     benchmark_definition: {
       type: "object",
       required: ["id", "evidence"],
-      properties: { id: { type: "string" }, aliases: { type: "array", items: { type: "string" }, uniqueItems: true }, kind: { enum: ["benchmark", "index", "aggregate", "claim"] }, name: { type: "string" }, category: { type: "string" }, description: { type: "string" }, year: { type: "integer" }, url: { type: "string" }, evidence: { $ref: "#/$defs/evidence" } },
+      properties: { id: { type: "string" }, aliases: { type: "array", items: { type: "string" }, uniqueItems: true }, kind: { enum: ["benchmark", "index", "aggregate", "claim"] }, name: { type: "string" }, category: { type: "string" }, description: { type: "string" }, year: { type: "integer" }, version: { type: "string" }, updated_at: { type: "string" }, dataset_type: { type: "string" }, url: { type: "string" }, evidence: { $ref: "#/$defs/evidence" } },
       additionalProperties: true,
     },
     workload_profile: {

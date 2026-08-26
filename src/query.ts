@@ -4,6 +4,8 @@ import { queryIndex, type IndexedModel } from "./query-index.js";
 import type { ApiEnvelope, Model, Offer, Snapshot, WorkloadProfile } from "./types.js";
 import { clamp, stableSort } from "./utils.js";
 
+const MAX_FULL_MODEL_LIMIT = 10;
+
 export interface ModelSummary {
   id: string;
   name: string;
@@ -50,7 +52,7 @@ export function listModels(snapshot: Snapshot, params: URLSearchParams | Record<
   });
   models = sortModels(models, get("sort"));
   const data: Array<Model | ModelSummary> = get("view") === "summary" ? models.map(summarizeModel) : models.map((row) => row.model);
-  return paginate(data, get("limit"), get("offset"), snapshot);
+  return paginate(data, get("limit"), get("offset"), snapshot, get("view") === "summary" ? MAX_LIMIT : MAX_FULL_MODEL_LIMIT);
 }
 
 export function getModel(snapshot: Snapshot, id: string): Model | undefined {
@@ -167,8 +169,8 @@ export function health(snapshot: Snapshot): Record<string, unknown> {
   };
 }
 
-function paginate<T>(items: T[], rawLimit: string | undefined, rawOffset: string | undefined, snapshot: Snapshot): ApiEnvelope<T> {
-  const limit = clamp(parseInteger(rawLimit) ?? DEFAULT_LIMIT, 1, MAX_LIMIT);
+function paginate<T>(items: T[], rawLimit: string | undefined, rawOffset: string | undefined, snapshot: Snapshot, maxLimit = MAX_LIMIT): ApiEnvelope<T> {
+  const limit = clamp(parseInteger(rawLimit) ?? DEFAULT_LIMIT, 1, maxLimit);
   const offset = Math.max(0, parseInteger(rawOffset) ?? 0);
   return {
     data: items.slice(offset, offset + limit),
