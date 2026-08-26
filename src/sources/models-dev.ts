@@ -1,9 +1,9 @@
-import type { Offer, SourceRecord, SourceResult } from "../types.ts";
-import { fetchJson } from "../http.ts";
-import { normalizeMillionPricing } from "../price.ts";
-import { baseRecord, mergeSourceRecord, newRecordMap, offer } from "./common.ts";
-import { capabilitiesFromParameters, evidence, reasoningSupport, record, stringValue } from "../source-utils.ts";
-import { arrayOfStrings, asRecord, boolValue, numberValue } from "../utils.ts";
+import type { Offer, SourceRecord, SourceResult } from "../types.js";
+import { fetchJson } from "../http.js";
+import { normalizeMillionPricing } from "../price.js";
+import { baseRecord, mergeSourceRecord, newRecordMap, offer } from "./common.js";
+import { capabilitiesFromParameters, evidence, reasoningSupport, record, stringValue } from "../source-utils.js";
+import { arrayOfStrings, asRecord, boolValue, numberValue } from "../utils.js";
 
 export const MODELS_DEV_URL = "https://models.dev/catalog.json";
 

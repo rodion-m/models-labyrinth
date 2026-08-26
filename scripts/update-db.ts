@@ -1,5 +1,5 @@
 import { resolve } from "node:path";
-import { refreshDatabase } from "../src/refresh.ts";
+import { refreshDatabase } from "../src/refresh.js";
 
 const path = resolve(process.cwd(), "models_db.json");
 const result = await refreshDatabase({ path });

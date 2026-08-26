@@ -1,10 +1,10 @@
-import type { BenchmarkDefinition, Offer, SourceRecord, SourceResult } from "../types.ts";
-import { fetchJson, fetchText, mapWithConcurrency } from "../http.ts";
-import { canonicalModelId } from "../identity.ts";
-import { normalizeMillionPricing, normalizePortkeyPricing } from "../price.ts";
-import { baseRecord, mergeSourceRecord, newRecordMap, offer } from "./common.ts";
-import { evidence, numeric, record, reasoningSupport, runtimeFromMetrics, stringValue } from "../source-utils.ts";
-import { asArray, asRecord, arrayOfStrings, boolValue, numberValue } from "../utils.ts";
+import type { BenchmarkDefinition, Offer, SourceRecord, SourceResult } from "../types.js";
+import { fetchJson, fetchText, mapWithConcurrency } from "../http.js";
+import { canonicalModelId } from "../identity.js";
+import { normalizeMillionPricing, normalizePortkeyPricing } from "../price.js";
+import { baseRecord, mergeSourceRecord, newRecordMap, offer } from "./common.js";
+import { evidence, numeric, record, reasoningSupport, runtimeFromMetrics, stringValue } from "../source-utils.js";
+import { asArray, asRecord, arrayOfStrings, boolValue, numberValue } from "../utils.js";
 
 export const MODELCAP_URL = "https://modelcap.ai/data/models.json";
 export const BENCHGECKO_URL = "https://benchgecko.ai/api/v1/models";

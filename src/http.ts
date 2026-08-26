@@ -1,5 +1,5 @@
-import type { FetchOptions } from "./types.ts";
-import { DEFAULT_MAX_BYTES } from "./constants.ts";
+import type { FetchOptions } from "./types.js";
+import { DEFAULT_MAX_BYTES } from "./constants.js";
 
 export class FetchError extends Error {
   constructor(

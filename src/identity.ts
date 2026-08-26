@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { slugify, stringValue } from "./utils.ts";
+import { slugify, stringValue } from "./utils.js";
 
 const OPENROUTER_VARIANTS = new Set(["free", "thinking", "nitro", "floor", "exacto"]);
 

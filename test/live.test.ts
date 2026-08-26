@@ -1,9 +1,9 @@
 import { strict as assert } from "node:assert";
 import test from "node:test";
-import { collectBenchLM } from "../src/sources/benchlm.ts";
-import { collectModelsDev } from "../src/sources/models-dev.ts";
-import { collectOpenRouter } from "../src/sources/openrouter.ts";
-import { collectArtificialAnalysis } from "../src/sources/artificial-analysis.ts";
+import { collectBenchLM } from "../src/sources/benchlm.js";
+import { collectModelsDev } from "../src/sources/models-dev.js";
+import { collectOpenRouter } from "../src/sources/openrouter.js";
+import { collectArtificialAnalysis } from "../src/sources/artificial-analysis.js";
 
 const live = process.env.LIVE_TESTS === "1";
 

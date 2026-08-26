@@ -1,10 +1,10 @@
-import type { SourceRecord, SourceResult } from "../types.ts";
-import { fetchJson } from "../http.ts";
-import { canonicalModelId } from "../identity.ts";
-import { normalizeMillionPricing } from "../price.ts";
-import { baseRecord, mergeSourceRecord, newRecordMap } from "./common.ts";
-import { evidence, numeric, record, runtimeFromMetrics, stringValue } from "../source-utils.ts";
-import { asArray, asRecord, numberValue } from "../utils.ts";
+import type { SourceRecord, SourceResult } from "../types.js";
+import { fetchJson } from "../http.js";
+import { canonicalModelId } from "../identity.js";
+import { normalizeMillionPricing } from "../price.js";
+import { baseRecord, mergeSourceRecord, newRecordMap } from "./common.js";
+import { evidence, numeric, record, runtimeFromMetrics, stringValue } from "../source-utils.js";
+import { asArray, asRecord, numberValue } from "../utils.js";
 
 export const AA_FREE_URL = "https://artificialanalysis.ai/api/v2/language/models/free";
 

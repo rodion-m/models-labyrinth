@@ -1,7 +1,7 @@
-import type { Evidence, RuntimeObservation } from "./types.ts";
-import { asArray, asRecord, arrayOfStrings, boolValue, nestedNumberMap, numberValue, stringValue } from "./utils.ts";
+import type { Evidence, RuntimeObservation } from "./types.js";
+import { asArray, asRecord, arrayOfStrings, boolValue, nestedNumberMap, numberValue, stringValue } from "./utils.js";
 
-export { stringValue } from "./utils.ts";
+export { stringValue } from "./utils.js";
 
 export function evidence(
   sourceId: string,

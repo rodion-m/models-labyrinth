@@ -1,8 +1,8 @@
-import type { Snapshot, SourceResult } from "./types.ts";
-import { SOURCE_ADAPTERS, type SourceAdapter } from "./sources/index.ts";
-import { mergeSnapshots, validateSnapshot } from "./merge.ts";
-import { readSnapshot, writeSnapshotAtomic } from "./storage.ts";
-import { contentHash } from "./hash.ts";
+import type { Snapshot, SourceResult } from "./types.js";
+import { SOURCE_ADAPTERS, type SourceAdapter } from "./sources/index.js";
+import { mergeSnapshots, validateSnapshot } from "./merge.js";
+import { readSnapshot, writeSnapshotAtomic } from "./storage.js";
+import { contentHash } from "./hash.js";
 
 export async function collectSources(
   previous: Snapshot | undefined,

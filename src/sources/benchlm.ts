@@ -1,9 +1,9 @@
-import type { BenchmarkDefinition, PricePoint, RuntimeObservation, SourceRecord, SourceResult } from "../types.ts";
-import { fetchJson } from "../http.ts";
-import { canonicalModelId } from "../identity.ts";
-import { baseRecord, mergeSourceRecord, newRecordMap } from "./common.ts";
-import { evidence, numeric, record, stringValue } from "../source-utils.ts";
-import { asArray, asRecord, numberValue } from "../utils.ts";
+import type { BenchmarkDefinition, PricePoint, RuntimeObservation, SourceRecord, SourceResult } from "../types.js";
+import { fetchJson } from "../http.js";
+import { canonicalModelId } from "../identity.js";
+import { baseRecord, mergeSourceRecord, newRecordMap } from "./common.js";
+import { evidence, numeric, record, stringValue } from "../source-utils.js";
+import { asArray, asRecord, numberValue } from "../utils.js";
 
 const BASE = "https://www.benchlm.ai/data";
 const URLS = {

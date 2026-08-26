@@ -1,9 +1,9 @@
-import type { Snapshot, SourceResult } from "../types.ts";
-import { collectArtificialAnalysis } from "./artificial-analysis.ts";
-import { collectBenchLM } from "./benchlm.ts";
-import { collectModelsDev } from "./models-dev.ts";
-import { collectOpenRouter } from "./openrouter.ts";
-import { collectBenchGecko, collectCloudPrice, collectEpoch, collectModelCap, collectPortkey } from "./enrichment.ts";
+import type { Snapshot, SourceResult } from "../types.js";
+import { collectArtificialAnalysis } from "./artificial-analysis.js";
+import { collectBenchLM } from "./benchlm.js";
+import { collectModelsDev } from "./models-dev.js";
+import { collectOpenRouter } from "./openrouter.js";
+import { collectBenchGecko, collectCloudPrice, collectEpoch, collectModelCap, collectPortkey } from "./enrichment.js";
 
 export interface SourceAdapter {
   source_id: string;

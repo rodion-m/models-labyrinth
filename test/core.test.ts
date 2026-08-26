@@ -3,17 +3,17 @@ import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { clearSnapshotCache, loadSnapshot } from "../src/db.ts";
-import { canonicalModelId, splitOpenRouterVariant } from "../src/identity.ts";
-import { normalizeMillionPricing, normalizeOpenRouterPricing, normalizePortkeyPricing } from "../src/price.ts";
-import { mergeSnapshots } from "../src/merge.ts";
-import { listModels, listOffers } from "../src/query.ts";
-import { refreshDatabase } from "../src/refresh.ts";
-import { writeSnapshotAtomic } from "../src/storage.ts";
-import { MODELS_DB_SCHEMA, assertSnapshotShape } from "../src/schema.ts";
-import { collectOpenRouter } from "../src/sources/openrouter.ts";
-import { collectBenchGecko, collectCloudPrice } from "../src/sources/enrichment.ts";
-import type { Snapshot, SourceRecord, SourceResult } from "../src/types.ts";
+import { clearSnapshotCache, loadSnapshot } from "../src/db.js";
+import { canonicalModelId, splitOpenRouterVariant } from "../src/identity.js";
+import { normalizeMillionPricing, normalizeOpenRouterPricing, normalizePortkeyPricing } from "../src/price.js";
+import { mergeSnapshots } from "../src/merge.js";
+import { listModels, listOffers } from "../src/query.js";
+import { refreshDatabase } from "../src/refresh.js";
+import { writeSnapshotAtomic } from "../src/storage.js";
+import { MODELS_DB_SCHEMA, assertSnapshotShape } from "../src/schema.js";
+import { collectOpenRouter } from "../src/sources/openrouter.js";
+import { collectBenchGecko, collectCloudPrice } from "../src/sources/enrichment.js";
+import type { Snapshot, SourceRecord, SourceResult } from "../src/types.js";
 
 test("price normalization preserves dimensions, units, zero and variable values", () => {
   const openRouter = normalizeOpenRouterPricing({ prompt: "0.0000025", completion: "0", web_search: "0.0025", request: "-1", overrides: [{ utc_days: ["saturday"], prompt: "0.000001" }] });

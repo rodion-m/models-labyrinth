@@ -1,7 +1,7 @@
-import { contentHash, stableValue } from "./hash.ts";
-import { SCHEMA_VERSION, WORKLOAD_PROFILES } from "./constants.ts";
-import type { BenchmarkDefinition, Evidence, Model, Offer, Snapshot, SourceRecord, SourceResult } from "./types.ts";
-import { asModelRecord } from "./sources/common.ts";
+import { contentHash, stableValue } from "./hash.js";
+import { SCHEMA_VERSION, WORKLOAD_PROFILES } from "./constants.js";
+import type { BenchmarkDefinition, Evidence, Model, Offer, Snapshot, SourceRecord, SourceResult } from "./types.js";
+import { asModelRecord } from "./sources/common.js";
 
 const CONFIDENCE_RANK = { unresolved: 0, alias: 1, exact: 2 } as const;
 

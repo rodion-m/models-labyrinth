@@ -1,5 +1,5 @@
-import type { PricePoint, PriceUnit } from "./types.ts";
-import { asArray, asRecord, numberValue, stringValue } from "./utils.ts";
+import type { PricePoint, PriceUnit } from "./types.js";
+import { asArray, asRecord, numberValue, stringValue } from "./utils.js";
 
 type PriceSpec = { dimension: string; unit: PriceUnit };
 

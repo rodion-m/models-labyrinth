@@ -1,10 +1,10 @@
-import type { Offer, SourceRecord, SourceResult } from "../types.ts";
-import { fetchJson, mapWithConcurrency } from "../http.ts";
-import { canonicalModelId } from "../identity.ts";
-import { normalizeOpenRouterPricing } from "../price.ts";
-import { baseRecord, offer } from "./common.ts";
-import { capabilitiesFromParameters, evidence, numeric, record, runtimeFromEndpoint, stringValue } from "../source-utils.ts";
-import { arrayOfStrings, asArray, asRecord, boolValue, mergeUniqueStrings } from "../utils.ts";
+import type { Offer, SourceRecord, SourceResult } from "../types.js";
+import { fetchJson, mapWithConcurrency } from "../http.js";
+import { canonicalModelId } from "../identity.js";
+import { normalizeOpenRouterPricing } from "../price.js";
+import { baseRecord, offer } from "./common.js";
+import { capabilitiesFromParameters, evidence, numeric, record, runtimeFromEndpoint, stringValue } from "../source-utils.js";
+import { arrayOfStrings, asArray, asRecord, boolValue, mergeUniqueStrings } from "../utils.js";
 
 export const OPENROUTER_MODELS_URL = "https://openrouter.ai/api/v1/models?output_modalities=all";
 const OPENROUTER_API = "https://openrouter.ai/api/v1";

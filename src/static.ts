@@ -1,9 +1,9 @@
 import { promises as fs } from "node:fs";
 import { dirname, join, resolve } from "node:path";
-import { MODELS_DB_SCHEMA } from "./schema.ts";
-import { health, listBenchmarks, listOffers, listProviders, listProfiles } from "./query.ts";
-import type { Snapshot } from "./types.ts";
-import { stableValue } from "./hash.ts";
+import { MODELS_DB_SCHEMA } from "./schema.js";
+import { health, listBenchmarks, listOffers, listProviders, listProfiles } from "./query.js";
+import type { Snapshot } from "./types.js";
+import { stableValue } from "./hash.js";
 
 export async function buildStatic(snapshot: Snapshot, outputRoot = resolve(process.cwd(), "public")): Promise<void> {
   const apiRoot = join(outputRoot, "api", "v1");

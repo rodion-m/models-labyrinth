@@ -1,8 +1,8 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { SNAPSHOT_CACHE_TTL_MS } from "./constants.ts";
-import type { Snapshot } from "./types.ts";
-import { assertSnapshotShape } from "./schema.ts";
+import { SNAPSHOT_CACHE_TTL_MS } from "./constants.js";
+import type { Snapshot } from "./types.js";
+import { assertSnapshotShape } from "./schema.js";
 
 let cached: Snapshot | undefined;
 let cachedPath: string | undefined;

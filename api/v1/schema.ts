@@ -1,6 +1,6 @@
-import type { ApiRequest, ApiResponse } from "../../src/api.ts";
-import { sendError, sendJson } from "../../src/api.ts";
-import { MODELS_DB_SCHEMA } from "../../src/schema.ts";
+import type { ApiRequest, ApiResponse } from "../../src/api.js";
+import { sendError, sendJson } from "../../src/api.js";
+import { MODELS_DB_SCHEMA } from "../../src/schema.js";
 
 export default function handler(_request: ApiRequest, response: ApiResponse): void {
   try {

@@ -1,7 +1,7 @@
-import { canonicalModelId, alias } from "../identity.ts";
-import type { Evidence, Model, Offer, SourceRecord } from "../types.ts";
-import { mergeCapabilities, modalities, reasoningSupport } from "../source-utils.ts";
-import { arrayOfStrings, boolValue, numberValue, stringValue } from "../utils.ts";
+import { canonicalModelId, alias } from "../identity.js";
+import type { Evidence, Model, Offer, SourceRecord } from "../types.js";
+import { mergeCapabilities, modalities, reasoningSupport } from "../source-utils.js";
+import { arrayOfStrings, boolValue, numberValue, stringValue } from "../utils.js";
 
 export function baseRecord(input: {
   sourceId: string;

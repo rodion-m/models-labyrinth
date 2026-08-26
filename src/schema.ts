@@ -1,6 +1,6 @@
-import type { Snapshot } from "./types.ts";
-import { contentHash } from "./hash.ts";
-import { hashableSnapshot } from "./merge.ts";
+import type { Snapshot } from "./types.js";
+import { contentHash } from "./hash.js";
+import { hashableSnapshot } from "./merge.js";
 
 export const MODELS_DB_SCHEMA = {
   $schema: "https://json-schema.org/draft/2020-12/schema",

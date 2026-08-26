@@ -1,8 +1,8 @@
-import { DEFAULT_LIMIT, MAX_LIMIT, WORKLOAD_PROFILES } from "./constants.ts";
-import { estimateCost } from "./cost.ts";
-import { queryIndex, type IndexedModel } from "./query-index.ts";
-import type { ApiEnvelope, Model, Offer, Snapshot, WorkloadProfile } from "./types.ts";
-import { clamp, stableSort } from "./utils.ts";
+import { DEFAULT_LIMIT, MAX_LIMIT, WORKLOAD_PROFILES } from "./constants.js";
+import { estimateCost } from "./cost.js";
+import { queryIndex, type IndexedModel } from "./query-index.js";
+import type { ApiEnvelope, Model, Offer, Snapshot, WorkloadProfile } from "./types.js";
+import { clamp, stableSort } from "./utils.js";
 
 export function listModels(snapshot: Snapshot, params: URLSearchParams | Record<string, string | undefined>): ApiEnvelope<Model> {
   const get = (key: string) => params instanceof URLSearchParams ? params.get(key) ?? undefined : params[key];

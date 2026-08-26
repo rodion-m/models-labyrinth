@@ -1,9 +1,9 @@
 import { strict as assert } from "node:assert";
 import test from "node:test";
-import modelsHandler from "../api/v1/models.ts";
-import schemaHandler from "../api/v1/schema.ts";
-import snapshotHandler from "../api/v1/snapshot.ts";
-import type { ApiResponse } from "../src/api.ts";
+import modelsHandler from "../api/v1/models.js";
+import schemaHandler from "../api/v1/schema.js";
+import snapshotHandler from "../api/v1/snapshot.js";
+import type { ApiResponse } from "../src/api.js";
 
 test("Vercel models handler returns the shared paginated envelope", () => {
   const response = fakeResponse();

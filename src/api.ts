@@ -1,4 +1,4 @@
-import { CACHE_TTL_SECONDS } from "./constants.ts";
+import { CACHE_TTL_SECONDS } from "./constants.js";
 
 export interface ApiRequest {
   url?: string;

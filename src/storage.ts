@@ -1,8 +1,8 @@
 import { promises as fs } from "node:fs";
 import { dirname } from "node:path";
-import type { Snapshot } from "./types.ts";
-import { assertSnapshotShape } from "./schema.ts";
-import { stableValue } from "./hash.ts";
+import type { Snapshot } from "./types.js";
+import { assertSnapshotShape } from "./schema.js";
+import { stableValue } from "./hash.js";
 
 export async function readSnapshot(path: string): Promise<Snapshot | undefined> {
   try {

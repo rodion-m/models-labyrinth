@@ -1,4 +1,4 @@
-import type { Offer, WorkloadProfile } from "./types.ts";
+import type { Offer, WorkloadProfile } from "./types.js";
 
 export function estimateCost(offer: Offer, profile: WorkloadProfile): number | null {
   const input = priceFor(offer, "input");

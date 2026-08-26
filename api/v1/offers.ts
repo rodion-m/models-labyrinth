@@ -1,7 +1,7 @@
-import type { ApiRequest, ApiResponse } from "../../src/api.ts";
-import { paramsFor, sendError, sendJson } from "../../src/api.ts";
-import { loadSnapshot } from "../../src/db.ts";
-import { listOffers } from "../../src/query.ts";
+import type { ApiRequest, ApiResponse } from "../../src/api.js";
+import { paramsFor, sendError, sendJson } from "../../src/api.js";
+import { loadSnapshot } from "../../src/db.js";
+import { listOffers } from "../../src/query.js";
 
 export default function handler(request: ApiRequest, response: ApiResponse): void {
   try {

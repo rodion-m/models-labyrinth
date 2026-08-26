@@ -1,5 +1,5 @@
-import type { Model, Offer, Snapshot } from "./types.ts";
-import type { FlatOffer } from "./query.ts";
+import type { Model, Offer, Snapshot } from "./types.js";
+import type { FlatOffer } from "./query.js";
 
 export interface IndexedModel {
   model: Model;

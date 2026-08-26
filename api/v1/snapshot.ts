@@ -1,5 +1,5 @@
-import type { ApiRequest, ApiResponse } from "../../src/api.ts";
-import { redirect } from "../../src/api.ts";
+import type { ApiRequest, ApiResponse } from "../../src/api.js";
+import { redirect } from "../../src/api.js";
 
 const DEFAULT_SNAPSHOT_LOCATION = "/api/v1/snapshot.json";
 

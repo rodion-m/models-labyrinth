@@ -1,4 +1,4 @@
-import type { WorkloadProfile } from "./types.ts";
+import type { WorkloadProfile } from "./types.js";
 
 export const SCHEMA_VERSION = "1.0" as const;
 export const DEFAULT_LIMIT = 50;
