@@ -28,7 +28,7 @@ Start with health and facet discovery:
 ```text
 GET /health
 GET /providers
-GET /benchmarks
+GET /benchmarks?kind=benchmark
 GET /profiles
 ```
 
@@ -55,7 +55,7 @@ Static GitHub Pages exposes a compact model index and base64url-named individual
 
 | Need | Inspect | Important caveat |
 | --- | --- | --- |
-| General quality | `benchmarks[]` | Match benchmark, variant, effort, evaluator, version, and unit. |
+| General quality | `benchmarks[]` | Match canonical benchmark, metric, variant, effort, evaluator, version, and unit. Exclude aggregate/claim rows. |
 | Structured output | `capabilities`, offer `supported_parameters`, relevant benchmarks/measurements | A support flag is not an adherence percentage. |
 | Tool use | `capabilities`, offer `supported_parameters`, tool-use benchmarks | Declared support and measured reliability are different claims. |
 | Reasoning | `reasoning[]`, offer `reasoning_efforts` | Availability does not imply the same token budget or behavior across providers. |
@@ -78,7 +78,13 @@ Every important observation should carry `evidence.source_id`, `url`, `fetched_a
 - `alias`: matched through a known alias;
 - `unresolved`: keep separate unless the user accepts the ambiguity.
 
-Do not count BenchLM, CloudPrice, or BenchGecko republishing the same upstream score as three independent confirmations. The `/benchmarks` inventory exposes source coverage and an `independent_sources` view.
+`benchmark_id` is the canonical identity. `source_benchmark_ids` retains the
+upstream field names that were merged into it; use these to audit provider,
+harness, metric, and legacy aliases. `kind` distinguishes a primary
+`benchmark`, named composite `index`, source-calculated `aggregate`, and opaque
+provider `claim`. Do not count BenchLM, CloudPrice, or BenchGecko republishing
+the same upstream score as three independent confirmations. The `/benchmarks`
+inventory exposes aliases, source coverage, and an `independent_sources` view.
 
 ## Offline snapshot analysis
 

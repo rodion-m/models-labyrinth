@@ -31,22 +31,23 @@ Use Vercel for `/health`, `/facets`, `/models`, `/offers`, `/benchmarks`, `/prov
 
 ## Decision playbook
 
-Prioritize evidence in this order: a benchmark that reproduces the task, then a close task-family benchmark, then a broad index. Use broad aggregate scores only to break ties or fill gaps. After choosing models for quality, evaluate provider offers separately for latency, throughput, price, context, cache, policy, quantization, and supported parameters. Confirm current benchmark ids through `/benchmarks`; the examples below are families, not a fixed allowlist.
+Prioritize evidence in this order: a current benchmark that reproduces the task, then a close task-family benchmark, then an older coverage anchor. Use `kind=benchmark` for primary comparisons. An `index` is context, while an `aggregate` or `claim` is not independent ranking evidence. After choosing models for quality, evaluate provider offers separately for latency, throughput, price, context, cache, policy, quantization, and supported parameters. Confirm current IDs through `/benchmarks?kind=benchmark`; the examples below are a reading order, not a fixed allowlist.
 
 | Workload | Quality evidence to prioritize | Operational evidence to prioritize |
 | --- | --- | --- |
-| Modify or debug a repository | SWE-Bench Verified/Pro/Rebench, TerminalBench; then coding index | Tools, context for the repository, output limit, latency across multi-step runs |
-| Generate algorithms or isolated code | LiveCodeBench, SciCode, Codeforces; then coding index | Output price, throughput, reasoning effort |
-| Autonomous agent or tool workflow | τ-bench, Toolathlon, BFCL, MCP/OSWorld/TerminalBench; then agentic index | Declared tools and exact parameters, route uptime/latency, context growth, cache economics |
-| Math or formal reasoning | AIME/HMMT for competition math, FrontierMath for harder problems, ARC-AGI for abstraction | Reasoning effort, output budget, thinking-token price when known |
-| Research, science, or factual QA | GPQA Diamond, HLE, MMLU-Pro; use BrowseComp/deep-search evaluations only when browsing is part of the task | Hallucination/accuracy observations, citations or tool support, context, freshness |
-| Structured extraction or classification | IFBench/IFEval for instruction following; published structured-output measurements when available | `structured_outputs` plus exact supported parameter, latency, retries, cost. A support flag alone does not measure schema adherence |
-| Long-context RAG or document analysis | LongBench, MRCR, needle/retrieval evaluations; task-domain QA second | Offer-level context, TTFT, cache read/write pricing, expected cache-hit ratio |
-| Vision, UI, charts, or OCR | MMMU-Pro for broad vision, ScreenSpot for UI grounding, CharXiv for charts, OCRBench for text extraction | Required input modalities, image pricing/limits, route latency |
-| Multilingual work | MMLU-ProX/Global-MMLU/NOVA63; SWE Multilingual for coding | Exact target language coverage, tokenizer cost, regional provider availability |
+| Production repository work | FrontierCode 1.1, DeepSWE v1.1, SWE-Rebench, FrontierSWE; Terminal-Bench 3 for terminal-heavy work | SWE-bench Verified/Pro and Terminal-Bench 2.1 are coverage anchors; hold scaffold, repo revision, tools, timeout, and verifier constant |
+| Algorithms or isolated code | LiveCodeBench v6/Pro, SciCode, ProgramBench; Codeforces only for the matching contest workload | Output price, throughput, effort, compiler/runtime, pass@k, and data cutoff |
+| Tool and MCP workflows | Toolathlon-Verified, MCP-Atlas, τ³-bench; BFCL v4 for call/schema mechanics | Exact tools and parameters, service state, retries, route uptime/latency, context growth, and cache economics |
+| Desktop/mobile computer use | OSWorld 2.0, MobileWorld, WebArena-Verified; ScreenSpot-Pro only for UI grounding | VM/app release, vision/action interface, state reset, evaluator, and task success rather than click accuracy |
+| Math and abstract reasoning | FrontierMath V2 Tiers 1–3/Tier 4, AIME/HMMT/IMO 2026, ARC-AGI-3, CritPt | Keep Python/tool access, effort, token budget, contest year, answer extractor, and interactive budget fixed |
+| Research, science, or factual QA | AA-Omniscience for accuracy/hallucination/abstention, CritPt/FrontierScience for science, HLE/GPQA as anchors; BrowseComp only when browsing is part of the task | Citations/search tools, factuality versus abstention, grader, freshness, context, and domain coverage |
+| Structured output and extraction | SOB value accuracy; LiquidExtract Schema F1 + JSON Validity + VLM Judge; IFBench/IFEval only for general constraint following | `structured_outputs` and exact route parameter, modality, schema complexity, parser, retries, latency, and cost |
+| Long-context and RAG | MRCR v2 with the matching context bin, CorpusQA 1M, GraphWalks 128K, AA-LCR; domain QA second | Advertised window is not retrieval quality: hold packing, position, retrieval/oracle access, truncation, TTFT, and cache pricing fixed |
+| Documents, OCR, charts, and UI | OCRBench V2, OmniDocBench 1.5, OfficeQA Pro/GDP.pdf, CharXiv, ScreenSpot-Pro, Vision2Web; MMMU-Pro for broad coverage | Original PDF versus rendered pages, OCR/parser/tools, image limits/pricing, judge, and version |
+| Multilingual work | MMLU-ProX, INCLUDE, NOVA-63, Global-MMLU, MILU, MaXIFE; SWE-bench Multilingual for repository work | Exact languages, native versus translated items, prompt language, aggregation, tokenizer cost, and route availability |
 | Creative or subjective writing | Direct writing/preference evaluations such as Lech-Mazur or relevant arena evidence; broad intelligence last | Style/context needs, output length and price. Treat preference scores as audience-dependent |
 
-Do not optimize a proxy past the task: GPQA is not an agent benchmark, IFEval is not schema reliability, LiveCodeBench is not repository maintenance, and advertised context is not retrieval quality. When no close benchmark exists, say so and lower confidence instead of synthesizing a universal score.
+Do not optimize a proxy past the task: GPQA is not an agent benchmark, IFEval is not schema reliability, ScreenSpot is not computer-use success, LiveCodeBench is not repository maintenance, and advertised context is not retrieval quality. Do not mix releases such as ARC-AGI 1/2/3, Terminal-Bench 2.0/2.1/3, OSWorld/Verified/2.0, FrontierMath legacy/V2, or tool/no-tool lanes. When no close benchmark exists, say so and lower confidence instead of synthesizing a universal score.
 
 ### Quick fit
 
@@ -58,7 +59,7 @@ Use `/offers` because quantization, provider context, supported parameters, runt
 
 ### Quality fit
 
-Use `/benchmarks` to find relevant benchmark ids and source coverage, then filter candidates by `benchmark`. Inspect complete model records through `/models/{url-encoded-id}`. Never rank unlike benchmark variants as if they shared one scale.
+Use `/benchmarks?kind=benchmark` to find canonical IDs and source coverage, then filter candidates by `benchmark`. Search aliases with `q`; old upstream IDs remain valid model filters. Inspect complete model records through `/models/{url-encoded-id}`. Use indices only as labeled composites and exclude `aggregate` and `claim` rows from quality ranking. Never rank unlike benchmark variants as if they shared one scale.
 
 ### Deep fit
 
@@ -71,6 +72,7 @@ Finally compare survivors on a small task-relevant set of axes. Prefer a Pareto 
 - Treat absent data as unknown, never as zero, false, unsupported, or poor performance.
 - A capability such as `structured_outputs: true` is a provider/model declaration, not a measured schema-adherence rate. Prefer a matching published measurement or benchmark when present; otherwise label it “declared support only.”
 - Keep benchmark variant, effort, evaluator, dataset version, unit, and source attached to the score. Compare like with like. Do not average overlapping secondary sources into extra confidence.
+- Treat `benchmark_id` as canonical and `source_benchmark_ids` as upstream aliases. Multiple observations of one canonical benchmark are provenance, not extra votes.
 - Provider runtime observations apply only to their stated scope and window. Model-level quality does not prove route-level latency; route-level speed does not prove quality.
 - Quantization belongs to an offer. Do not transfer an unquantized score to a quantized route without saying that the quality impact is unknown.
 - Price comparisons must include the relevant dimensions: input, output, cache read/write, reasoning or thinking tokens, requests, and any tiers. API estimates cover fixed input/output prices, cache reads, and request charges. They assume a warm cache and exclude cache writes, thinking tokens, tiered/scheduled prices, and non-token media; label these omissions and calculate separately when material. A `null` estimate is unknown, not expensive or free.
