@@ -25,7 +25,7 @@ Use Vercel for `/health`, `/facets`, `/models`, `/offers`, `/benchmarks`, `/prov
 | User need | Route | Start with | Escalate when |
 | --- | --- | --- | --- |
 | “Which model should I use?” | **Quick fit** | `/facets`, then `/models?view=summary` | Relevant quality evidence is not visible in the shortlist. |
-| “Which provider/route/effort?” | **Route fit** | `/offers` with model, capability, context, effort, quantization, cache, runtime, and workload-profile filters | Quality and route evidence must be joined across several observations. |
+| “Which provider/route/effort?” | **Route fit** | `/offers` with model, capability, context, effort, quantization, cache, runtime, and workload-profile filters | Quality and route evidence must be joined across several observations, or one OpenRouter slug has several plausible endpoint providers. |
 | “Best for coding/agents/math/etc.” | **Quality fit** | `/benchmarks`, summary candidates, then complete model records | Benchmark variants or sources require an offline comparison. |
 | “Compare everything / custom constraints” | **Deep fit** | Full snapshot plus schema | Never escalate further; report missing published evidence. |
 
@@ -59,6 +59,8 @@ Discover valid values through `/facets`; do not guess capability or modality nam
 ### Route fit
 
 Use `/offers` because quantization, provider context, supported parameters, runtime, cache pricing, and reasoning effort belong to a route. Filter an exact shortlist with repeated `model` ids; `q` is only substring search. Other filters include `provider`, `modality`, `capability`, `supported_parameter`, `reasoning_effort`, `quantization`, `source`, `min_context`, `has_runtime`, `has_cache_pricing`, `profile`, `max_cost_usd`, `sort`, `limit`, and `offset`. For a known workload use `profile=custom` with required `input_tokens` and `output_tokens`; `cached_input_ratio` defaults to `0` and `requests_per_task` to `1`. `sort=cost` and `max_cost_usd` require either a named or custom profile; `sort=context` does not.
+
+When the surviving route is an OpenRouter model slug with multiple plausible endpoint providers, read [references/openrouter-provider-ranking.md](references/openrouter-provider-ranking.md) and hand off endpoint ranking to the dedicated `openrouter-provider-ranking` skill when it is available. Keep the stages separate: this skill selects the model and establishes workload constraints; the provider-ranking skill compares OpenRouter endpoints for that exact slug. Do not use endpoint speed or price to retroactively claim that the underlying model has better task quality.
 
 ### Quality fit
 

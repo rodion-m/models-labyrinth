@@ -16,6 +16,10 @@ when the comparison cannot be expressed efficiently through API filters.
 The skill keeps model quality, provider behavior, quantization, price, and
 evidence confidence separate until the user's task makes their trade-offs
 explicit. It does not run models or invent a universal leaderboard score.
+For endpoint-level routing after an OpenRouter model slug is chosen, it links
+to the maintained
+[`openrouter-provider-ranking`](https://github.com/CodeAlive-AI/ai-driven-development/tree/main/skills/openrouter-provider-ranking)
+skill instead of duplicating that specialized workflow.
 
 ## Architecture
 

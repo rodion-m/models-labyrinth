@@ -1,0 +1,44 @@
+# OpenRouter provider-ranking handoff
+
+Use the dedicated [`openrouter-provider-ranking`](https://github.com/CodeAlive-AI/ai-driven-development/tree/main/skills/openrouter-provider-ranking) skill after Models Labyrinth has selected one or a small number of exact OpenRouter model slugs and the remaining question is which OpenRouter endpoint provider or routing mode should serve the workload.
+
+This is a reference to the maintained upstream skill, not a vendored copy. Follow the upstream instructions when it is installed; do not recreate its scoring formula from memory. Install it when permitted with:
+
+```bash
+npx skills add CodeAlive-AI/ai-driven-development@openrouter-provider-ranking -g -y
+```
+
+## Handoff trigger
+
+Hand off when at least one of these is material:
+
+- several endpoint providers expose the same OpenRouter model slug;
+- quantization, context, supported parameters, privacy, or fallback diversity can eliminate routes;
+- the decision depends on provider-scoped TPS, TTFT, uptime, cache behavior, or effective workload cost;
+- the user needs `provider.order`, `provider.only`, `:exacto`, or a choice between native OpenRouter routing and a pinned chain.
+
+Do not hand off merely because OpenRouter is one available catalog provider. Finish model-family selection first. The provider-ranking skill is intentionally scoped to endpoint routing for a known model slug, not broad model-quality comparison.
+
+## Handoff contract
+
+Pass the exact OpenRouter model slug and the constraints already established:
+
+- tool and structured-output requirements, streaming, required parameters, context, and output limits;
+- prompt, completion, cache-read, and cache-write token profile plus requests per task/session;
+- acceptable reasoning efforts and quantizations;
+- hard caps for cost, TTFT, throughput, uptime, privacy/ZDR, moderation, and data collection;
+- optimization goal and whether deterministic failover is required;
+- relevant published provider observations and their freshness.
+
+Keep Models Labyrinth benchmark evidence attached to the model decision. Let the provider-ranking skill own endpoint compatibility, workload pricing, provider runtime comparison, uncertainty, routing mode, and fallback ordering.
+
+## Evidence boundary
+
+The Models Labyrinth workflow does not spend provider credits or create private benchmark, latency, or cache measurements. When this reference is used under that constraint:
+
+- rank only from current published catalog/API evidence and any telemetry the user explicitly supplies;
+- mark the endpoint order as a hypothesis where the upstream skill calls for real-request verification;
+- include its minimal verification plan, but do not execute probes without separate user authorization;
+- never infer a missing provider metric, cache hit rate, Exacto score, or quantization quality impact.
+
+The upstream skill may require `OPENROUTER_API_KEY` for live endpoint discovery. Read it only from the environment; never place it in prompts, output, configs, logs, or repository files.
