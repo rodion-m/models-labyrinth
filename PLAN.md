@@ -12,6 +12,26 @@ blended leaderboard. Source measurements must remain distinguishable because
 pricing, benchmark methodology, runtime conditions, and model identity are
 not interchangeable.
 
+## Model-selection navigation
+
+The repository also ships the `models-that-fits-my-task` agent skill. Its
+selection flow has four bounded routes:
+
+1. **Quick fit** discovers facets, requests compact model summaries, and opens
+   full records only for a shortlist.
+2. **Route fit** evaluates provider offers, reasoning effort, quantization,
+   cache pricing, runtime evidence, and named or caller-supplied workload cost.
+3. **Quality fit** starts from task-relevant benchmark definitions and keeps
+   benchmark conditions attached to every comparison.
+4. **Deep fit** downloads the full snapshot and schema for cross-field analysis
+   that the API cannot express.
+
+The API supports this flow with `/facets`, `view=summary`, exact model/provider
+filters, modality gates, focused offer-level filters, and an explicit custom
+workload profile. It deliberately does not expose a universal
+`/recommend` score: hard constraints, trade-off weights, and evidence gaps
+belong to the user's task and remain visible in the skill's decision.
+
 ## Constraints
 
 - No database service and no runtime network dependency for API reads.

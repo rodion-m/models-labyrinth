@@ -1,0 +1,4 @@
+interface:
+  display_name: "Models That Fits My Task"
+  short_description: "Choose the best model and provider for a task"
+  default_prompt: "Use $models-that-fits-my-task to recommend the best model and provider route for my workload."

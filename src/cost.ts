@@ -4,7 +4,9 @@ export function estimateCost(offer: Offer, profile: WorkloadProfile): number | n
   const input = priceFor(offer, "input");
   const output = priceFor(offer, "output");
   const cacheRead = priceFor(offer, "cache_read");
-  if (!input && !output) return null;
+  const request = priceFor(offer, "request");
+  if (profile.input_tokens > 0 && !input) return null;
+  if (profile.output_tokens > 0 && !output) return null;
   const inputCost = input ? input(profile.input_tokens * (1 - profile.cached_input_ratio)) : 0;
   const cachedCost = cacheRead
     ? cacheRead(profile.input_tokens * profile.cached_input_ratio)
@@ -12,15 +14,20 @@ export function estimateCost(offer: Offer, profile: WorkloadProfile): number | n
       ? input(profile.input_tokens * profile.cached_input_ratio)
       : 0;
   const outputCost = output ? output(profile.output_tokens) : 0;
-  return Number(((inputCost + cachedCost + outputCost) * profile.requests_per_task).toPrecision(12));
+  const requestCost = request ? request(1) : 0;
+  return Number(((inputCost + cachedCost + outputCost + requestCost) * profile.requests_per_task).toPrecision(12));
 }
 
 function priceFor(offer: Offer, dimension: string): ((units: number) => number) | undefined {
-  const point = offer.pricing.find((value) => value.dimension === dimension && value.kind !== "scheduled" && value.amount_usd_per_unit !== null);
-  if (!point || point.amount_usd_per_unit === null) return undefined;
-  return (units: number) => point.unit === "million_tokens"
-    ? units / 1_000_000 * point.amount_usd_per_unit!
-    : point.unit === "token"
-      ? units * point.amount_usd_per_unit!
-      : 0;
+  const points = offer.pricing.filter((value) => value.dimension === dimension && value.kind === "fixed" && value.amount_usd_per_unit !== null);
+  const normalized = points.flatMap((point) => {
+    if (point.amount_usd_per_unit === null) return [];
+    if (point.unit === "million_tokens") return [point.amount_usd_per_unit / 1_000_000];
+    if (point.unit === "token" || point.unit === "request") return [point.amount_usd_per_unit];
+    return [];
+  });
+  if (normalized.length === 0) return undefined;
+  const first = normalized[0];
+  if (normalized.some((value) => Math.abs(value - first) > Math.max(1e-15, Math.abs(first) * 1e-9))) return undefined;
+  return (units: number) => units * first;
 }

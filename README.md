@@ -1,9 +1,21 @@
-# LLM Models DB
+# Models Labyrinth
 
-A small read-only catalog of models, provider endpoints, prices, reasoning
-efforts, benchmark scores, and published runtime metrics. The snapshot is
-refreshed twice a day by GitHub Actions, and API reads make no network
-requests.
+A source-aware catalog and model-selection atlas covering models, provider
+routes, prices, reasoning efforts, benchmark scores, and published runtime
+metrics. The snapshot is refreshed twice a day by GitHub Actions, and API
+reads make no network requests.
+
+## Model-selection skill
+
+The repository includes [`models-that-fits-my-task`](.agents/skills/models-that-fits-my-task/SKILL.md),
+an agent skill that turns a workload description into an evidence-backed model
+and provider-route recommendation. It uses the filtered API for ordinary
+decisions and downloads the full snapshot together with its JSON Schema only
+when the comparison cannot be expressed efficiently through API filters.
+
+The skill keeps model quality, provider behavior, quantization, price, and
+evidence confidence separate until the user's task makes their trade-offs
+explicit. It does not run models or invent a universal leaderboard score.
 
 ## Architecture
 
@@ -81,8 +93,11 @@ All collection endpoints return an envelope with `data` and `meta`:
 ```
 
 - `GET /api/v1/models?q=gpt&provider=openrouter&capability=tools&limit=50`
+- `GET /api/v1/models?view=summary&capability=tools&capability=structured_outputs&limit=100`
 - `GET /api/v1/models/:id`
-- `GET /api/v1/offers?provider=openrouter&quantization=fp8&profile=rag-long-prefix`
+- `GET /api/v1/offers?model=openai/gpt-5&provider=openrouter&capability=tools&has_runtime=true&profile=rag-long-prefix&sort=cost`
+- `GET /api/v1/offers?capability=structured_outputs&profile=custom&input_tokens=10000&output_tokens=300&cached_input_ratio=0.5&sort=cost`
+- `GET /api/v1/facets` — discover current capability, effort, quantization, modality, and source values.
 - `GET /api/v1/providers`
 - `GET /api/v1/benchmarks`
 - `GET /api/v1/profiles`
@@ -90,11 +105,23 @@ All collection endpoints return an envelope with `data` and `meta`:
 - `GET /api/v1/schema` — JSON Schema for the complete `models_db.json`.
 - `GET /api/v1/snapshot` — redirect to the full static `snapshot.json`.
 
-Supported filters cover model id/name/alias, provider, capability, reasoning
-effort, quantization, source, benchmark, open weights, minimum context, price
-estimate, and workload profile. `estimated_cost_usd` is only a deterministic
-calculation from declared prices and a named profile; it is not measured cost
-or a latency prediction.
+Model filters cover id/name/alias, provider, capability, reasoning effort,
+modality, quantization, source, benchmark, open weights, minimum context, and sorting.
+Use `view=summary` for broad candidate discovery; fetch full records only for
+the shortlist. Repeated or comma-separated capabilities are ANDed. Repeated
+providers, efforts, quantizations, and sources are ORed. Provider values are
+exact provider ids; use `/providers` to discover them.
+
+Offer filters additionally cover supported parameters, minimum route context,
+exact model ids, modalities, presence of runtime observations, presence of declared cache pricing, price
+estimate, and workload profile. `sort=cost` requires a profile; `sort=context`
+does not. Use `profile=custom` with required `input_tokens` and `output_tokens`
+when the named profiles do not match the task; `cached_input_ratio` defaults to
+zero and `requests_per_task` to one. `estimated_cost_usd` is only a deterministic
+calculation from unambiguous fixed input/output, cache-read, and request prices.
+It assumes a warm cache and excludes cache writes, thinking tokens, tiered or
+scheduled prices, and non-token media. Unknown or conflicting prices return
+`null`; the estimate is not measured cost or a latency prediction.
 
 Vercel Functions have a 4.5 MB response-body limit, so collection pages are
 limited to 100 items. For complete offline analysis, use the static
@@ -151,7 +178,7 @@ The static projection contains:
 - `api/v1/models.json` and `api/v1/models/index.json` — compact model index;
 - `api/v1/models/<base64url-id>.json` — individual model records;
 - `api/v1/offers.json` — first page of the flat offer representation;
-- `api/v1/providers.json`, `benchmarks.json`, `profiles.json`, `health.json`.
+- `api/v1/providers.json`, `benchmarks.json`, `profiles.json`, `facets.json`, `health.json`.
 
 Use `models_db.json` for the complete offer list. Static `offers.json` is
 intentionally limited to the same page size as the dynamic API so it does not

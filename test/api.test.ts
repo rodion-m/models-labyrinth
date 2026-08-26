@@ -1,6 +1,8 @@
 import { strict as assert } from "node:assert";
 import test from "node:test";
 import modelsHandler from "../api/v1/models.js";
+import offersHandler from "../api/v1/offers.js";
+import facetsHandler from "../api/v1/facets.js";
 import schemaHandler from "../api/v1/schema.js";
 import snapshotHandler from "../api/v1/snapshot.js";
 import type { ApiResponse } from "../src/api.js";
@@ -12,6 +14,27 @@ test("Vercel models handler returns the shared paginated envelope", () => {
   assert.equal(response.headers["content-type"], "application/json; charset=utf-8");
   assert.equal((response.body as any).meta.limit, 2);
   assert.ok(Array.isArray((response.body as any).data));
+});
+
+test("selection endpoints expose compact model summaries and discoverable facets", () => {
+  const modelResponse = fakeResponse();
+  modelsHandler({ url: "/api/v1/models?view=summary&limit=1" }, modelResponse);
+  assert.equal(modelResponse.statusCode, 200);
+  assert.equal((modelResponse.body as any).data[0].offers, undefined);
+  assert.ok(Array.isArray((modelResponse.body as any).data[0].providers));
+
+  const facetsResponse = fakeResponse();
+  facetsHandler({}, facetsResponse);
+  assert.equal(facetsResponse.statusCode, 200);
+  assert.ok(Array.isArray((facetsResponse.body as any).data.capabilities));
+  assert.ok(Array.isArray((facetsResponse.body as any).data.reasoning_efforts));
+});
+
+test("offers handler reports invalid custom workloads as client errors", () => {
+  const response = fakeResponse();
+  offersHandler({ url: "/api/v1/offers?profile=custom&input_tokens=1000" }, response);
+  assert.equal(response.statusCode, 400);
+  assert.match((response.body as any).error.message, /output_tokens is required/);
 });
 
 test("schema handler exposes the same JSON Schema contract", () => {

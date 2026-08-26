@@ -1,7 +1,7 @@
 import { promises as fs } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { MODELS_DB_SCHEMA } from "./schema.js";
-import { health, listBenchmarks, listOffers, listProviders, listProfiles } from "./query.js";
+import { health, listBenchmarks, listFacets, listOffers, listProviders, listProfiles } from "./query.js";
 import type { Snapshot } from "./types.js";
 import { stableValue } from "./hash.js";
 
@@ -15,6 +15,7 @@ export async function buildStatic(snapshot: Snapshot, outputRoot = resolve(proce
   await writeJson(join(apiRoot, "providers.json"), { data: listProviders(snapshot) });
   await writeJson(join(apiRoot, "benchmarks.json"), { data: listBenchmarks(snapshot) });
   await writeJson(join(apiRoot, "profiles.json"), { data: listProfiles() });
+  await writeJson(join(apiRoot, "facets.json"), { data: listFacets(snapshot) });
   await writeJson(join(apiRoot, "offers.json"), listOffers(snapshot, new URLSearchParams("limit=100")));
   const index = snapshot.models.map((model) => ({ id: model.id, name: model.name, file: `models/${fileKey(model.id)}.json` }));
   await writeJson(join(apiRoot, "models.json"), { data: index, meta: { total: index.length, updated_at: snapshot.generated_at, schema_version: snapshot.schema_version } });

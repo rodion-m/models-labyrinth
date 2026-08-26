@@ -5,10 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta
       name="description"
-      content="Models Labyrinth is a source-aware catalog of models, providers, prices, benchmarks, reasoning efforts, and runtime claims."
+      content="Models Labyrinth helps agents choose the right model and provider route using source-aware quality, speed, price, capability, and runtime evidence."
     />
     <meta name="theme-color" content="#0b0d0c" />
-    <title>Models Labyrinth — The model catalog for the whole stack</title>
+    <title>Models Labyrinth — Find the model that fits your task</title>
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
     <style>
       :root {
@@ -116,7 +116,8 @@
         <span class="text-sm font-semibold tracking-[-0.02em]">Models Labyrinth</span>
       </a>
       <nav class="flex items-center gap-5 text-[13px] text-[#9ca59d] sm:gap-7" aria-label="Primary navigation">
-        <a class="acid-link hidden sm:inline" href="#why">Why it exists</a>
+        <a class="acid-link hidden sm:inline" href="#why">How it decides</a>
+        <a class="acid-link hidden sm:inline" href="https://github.com/rodion-m/models-labyrinth/tree/main/.agents/skills/models-that-fits-my-task" target="_blank" rel="noreferrer">Skill</a>
         <a class="acid-link" href="api/v1/schema.json">Schema</a>
         <a class="acid-link" href="https://github.com/rodion-m/models-labyrinth" target="_blank" rel="noreferrer">GitHub ↗</a>
       </nav>
@@ -126,19 +127,19 @@
       <section id="top" class="relative mx-auto max-w-7xl px-5 pb-20 pt-8 sm:px-8 sm:pt-14 lg:px-10 lg:pb-28 lg:pt-16">
         <div class="grid items-center gap-12 lg:grid-cols-[0.82fr_1.18fr] lg:gap-16">
           <div class="relative z-10">
-            <p class="mb-6 text-[11px] font-medium uppercase tracking-[0.22em] text-[#c8ff4a]">A source-aware model catalog</p>
+            <p class="mb-6 text-[11px] font-medium uppercase tracking-[0.22em] text-[#c8ff4a]">A model-selection atlas</p>
             <h1 class="max-w-[13ch] text-5xl font-semibold leading-[0.96] tracking-[-0.065em] text-[#edf1e9] sm:text-6xl lg:text-7xl">
-              Compare the whole model stack.
+              Find the model that fits your task.
             </h1>
             <p class="mt-7 max-w-[38ch] text-base leading-7 text-[#9ca59d] sm:text-lg">
-              Models, routes, prices, benchmarks, efforts, and runtime claims — organized with their provenance intact.
+              Turn a workload into a defensible model and provider route, with quality, speed, cost, capabilities, and uncertainty kept visible.
             </p>
             <div class="mt-9 flex flex-wrap items-center gap-3">
-              <a class="inline-flex h-11 items-center justify-center rounded-full bg-[#c8ff4a] px-5 text-sm font-semibold text-[#0b0d0c] transition duration-200 hover:-translate-y-0.5 hover:bg-[#d7ff7a] active:translate-y-0" href="api/v1/models.json">
-                Explore the API <span class="ml-2 text-base">↗</span>
+              <a class="inline-flex h-11 items-center justify-center rounded-full bg-[#c8ff4a] px-5 text-sm font-semibold text-[#0b0d0c] transition duration-200 hover:-translate-y-0.5 hover:bg-[#d7ff7a] active:translate-y-0" href="https://github.com/rodion-m/models-labyrinth/tree/main/.agents/skills/models-that-fits-my-task" target="_blank" rel="noreferrer">
+                Use the skill <span class="ml-2 text-base">↗</span>
               </a>
-              <a class="inline-flex h-11 items-center justify-center rounded-full border border-white/15 px-5 text-sm font-medium text-[#edf1e9] transition duration-200 hover:-translate-y-0.5 hover:border-[#c8ff4a]/60 hover:text-[#c8ff4a] active:translate-y-0" href="api/v1/snapshot.json">
-                Download snapshot
+              <a class="inline-flex h-11 items-center justify-center rounded-full border border-white/15 px-5 text-sm font-medium text-[#edf1e9] transition duration-200 hover:-translate-y-0.5 hover:border-[#c8ff4a]/60 hover:text-[#c8ff4a] active:translate-y-0" href="api/v1/facets.json">
+                Explore the data
               </a>
             </div>
           </div>
@@ -146,7 +147,7 @@
           <figure class="hero-frame min-h-[430px] rounded-[22px] border border-white/10 shadow-2xl shadow-black/30 sm:min-h-[560px] lg:min-h-[650px]">
             <img class="absolute inset-0 size-full object-cover" src="labyrinth-hero.jpg" alt="A luminous network of model and provider data nodes" />
             <div class="absolute inset-x-5 bottom-5 z-10 flex items-end justify-between gap-4 sm:inset-x-7 sm:bottom-7">
-              <figcaption class="max-w-[22ch] text-sm leading-5 text-white/70">The useful unit is often an endpoint, not just a model.</figcaption>
+              <figcaption class="max-w-[24ch] text-sm leading-5 text-white/70">The answer is often a model, a provider route, and a configuration.</figcaption>
               <span class="shrink-0 font-mono text-[10px] uppercase tracking-[0.18em] text-[#c8ff4a]">Live catalog / 01</span>
             </div>
           </figure>
@@ -175,30 +176,30 @@
       <section id="why" class="border-t hairline">
         <div class="mx-auto grid max-w-7xl gap-14 px-5 py-24 sm:px-8 lg:grid-cols-[0.8fr_1.2fr] lg:gap-24 lg:px-10 lg:py-32">
           <div>
-            <h2 class="max-w-[10ch] text-4xl font-semibold leading-[0.98] tracking-[-0.055em] sm:text-5xl">The hard part is the comparison.</h2>
-            <p class="mt-6 max-w-[35ch] text-base leading-7 text-[#9ca59d]">A leaderboard answers one question. Production decisions need the conditions around the score.</p>
-            <a class="acid-link mt-8 inline-flex items-center gap-2 text-sm font-medium text-[#edf1e9] underline decoration-white/20" href="api/v1/schema.json">See the data contract <span class="text-[#c8ff4a]">↗</span></a>
+            <h2 class="max-w-[11ch] text-4xl font-semibold leading-[0.98] tracking-[-0.055em] sm:text-5xl">Model choice is task-shaped.</h2>
+            <p class="mt-6 max-w-[37ch] text-base leading-7 text-[#9ca59d]">A leaderboard answers one generic question. A production workload brings hard constraints, provider behavior, and real trade-offs.</p>
+            <a class="acid-link mt-8 inline-flex items-center gap-2 text-sm font-medium text-[#edf1e9] underline decoration-white/20" href="api/v1/facets.json">Discover the decision space <span class="text-[#c8ff4a]">↗</span></a>
           </div>
           <div class="divide-y hairline border-y hairline">
             <article class="grid gap-5 py-7 sm:grid-cols-[56px_1fr] sm:gap-7">
               <span class="font-mono text-xs text-[#c8ff4a]">01</span>
               <div>
-                <h3 class="text-xl font-medium tracking-[-0.03em]">One identity, many observations.</h3>
-                <p class="mt-2 max-w-[54ch] text-sm leading-6 text-[#9ca59d]">Keep a model recognizable across catalogs while preserving each source’s price, benchmark, and runtime evidence.</p>
+                <h3 class="text-xl font-medium tracking-[-0.03em]">Frame the workload first.</h3>
+                <p class="mt-2 max-w-[54ch] text-sm leading-6 text-[#9ca59d]">Turn modality, context, tools, structured output, budget, latency, and privacy needs into explicit gates and preferences.</p>
               </div>
             </article>
             <article class="grid gap-5 py-7 sm:grid-cols-[56px_1fr] sm:gap-7">
               <span class="font-mono text-xs text-[#c8ff4a]">02</span>
               <div>
-                <h3 class="text-xl font-medium tracking-[-0.03em]">Provider reality stays visible.</h3>
-                <p class="mt-2 max-w-[54ch] text-sm leading-6 text-[#9ca59d]">Quantization, cache pricing, context limits, reasoning controls, and rolling endpoint metrics belong beside the model.</p>
+                <h3 class="text-xl font-medium tracking-[-0.03em]">Separate model from route.</h3>
+                <p class="mt-2 max-w-[54ch] text-sm leading-6 text-[#9ca59d]">Quality may belong to the model; quantization, cache pricing, context limits, and runtime behavior belong to the provider offer.</p>
               </div>
             </article>
             <article class="grid gap-5 py-7 sm:grid-cols-[56px_1fr] sm:gap-7">
               <span class="font-mono text-xs text-[#c8ff4a]">03</span>
               <div>
-                <h3 class="text-xl font-medium tracking-[-0.03em]">Derived values show their work.</h3>
-                <p class="mt-2 max-w-[54ch] text-sm leading-6 text-[#9ca59d]">Cost estimates are transparent calculations from declared prices — never disguised as new measurements.</p>
+                <h3 class="text-xl font-medium tracking-[-0.03em]">Go deep only when needed.</h3>
+                <p class="mt-2 max-w-[54ch] text-sm leading-6 text-[#9ca59d]">Use compact API shortlists for ordinary choices, then take the full snapshot and schema for custom cross-field analysis.</p>
               </div>
             </article>
           </div>
@@ -207,20 +208,20 @@
 
       <section class="border-t hairline">
         <div class="mx-auto max-w-7xl px-5 py-24 sm:px-8 lg:px-10 lg:py-32">
-          <h2 class="max-w-[14ch] text-4xl font-semibold leading-[0.98] tracking-[-0.055em] sm:text-5xl">Keep the signal. Drop the fiction.</h2>
-          <p class="mt-6 max-w-[58ch] text-base leading-7 text-[#9ca59d]">The catalog tells you what a source actually says — and makes the gaps just as explicit.</p>
+          <h2 class="max-w-[14ch] text-4xl font-semibold leading-[0.98] tracking-[-0.055em] sm:text-5xl">A recommendation that shows its work.</h2>
+          <p class="mt-6 max-w-[58ch] text-base leading-7 text-[#9ca59d]">The skill preserves what each source actually says, keeps unknowns visible, and explains why one trade-off fits your task.</p>
           <div class="mt-14 grid gap-10 md:grid-cols-3 md:gap-7">
             <div class="border-t hairline pt-5">
               <p class="font-mono text-xs text-[#c8ff4a]">/ provenance</p>
-              <p class="mt-5 text-lg font-medium tracking-[-0.025em]">Trace every important field back to its source.</p>
+              <p class="mt-5 text-lg font-medium tracking-[-0.025em]">Trace every decisive claim back to its source and timestamp.</p>
             </div>
             <div class="border-t hairline pt-5">
-              <p class="font-mono text-xs text-[#c8ff4a]">/ separation</p>
-              <p class="mt-5 text-lg font-medium tracking-[-0.025em]">Keep competing measurements separate instead of averaging away context.</p>
+              <p class="font-mono text-xs text-[#c8ff4a]">/ trade-offs</p>
+              <p class="mt-5 text-lg font-medium tracking-[-0.025em]">Use hard gates and a visible Pareto frontier instead of an opaque universal score.</p>
             </div>
             <div class="border-t hairline pt-5">
-              <p class="font-mono text-xs text-[#c8ff4a]">/ portability</p>
-              <p class="mt-5 text-lg font-medium tracking-[-0.025em]">Download one complete JSON snapshot and filter it however you need.</p>
+              <p class="font-mono text-xs text-[#c8ff4a]">/ uncertainty</p>
+              <p class="mt-5 text-lg font-medium tracking-[-0.025em]">Treat missing data as unknown and keep declared support separate from measured reliability.</p>
             </div>
           </div>
         </div>
@@ -229,11 +230,12 @@
       <section id="api" class="border-t hairline bg-[#101411]">
         <div class="mx-auto grid max-w-7xl gap-14 px-5 py-24 sm:px-8 lg:grid-cols-[0.82fr_1.18fr] lg:items-center lg:gap-24 lg:px-10 lg:py-32">
           <div>
-            <h2 class="max-w-[11ch] text-4xl font-semibold leading-[0.98] tracking-[-0.055em] sm:text-5xl">Built to be used, not admired.</h2>
-            <p class="mt-6 max-w-[38ch] text-base leading-7 text-[#9ca59d]">Use fast filtered endpoints for decisions, or take the snapshot and make the data your own.</p>
+            <h2 class="max-w-[11ch] text-4xl font-semibold leading-[0.98] tracking-[-0.055em] sm:text-5xl">Start narrow. Expand with evidence.</h2>
+            <p class="mt-6 max-w-[40ch] text-base leading-7 text-[#9ca59d]">Discover valid facets, build a compact shortlist, inspect provider offers, and download the snapshot only for deeper questions.</p>
             <div class="mt-8 flex flex-wrap gap-x-5 gap-y-3 font-mono text-[11px] uppercase tracking-[0.14em] text-[#78827a]">
               <a class="acid-link" href="api/v1/models.json">models</a>
               <a class="acid-link" href="api/v1/offers.json">offers</a>
+              <a class="acid-link" href="api/v1/facets.json">facets</a>
               <a class="acid-link" href="api/v1/schema.json">schema</a>
               <a class="acid-link" href="api/v1/snapshot.json">snapshot</a>
             </div>
@@ -243,8 +245,8 @@
               <span>query / models</span>
               <span class="text-[#c8ff4a]">GET</span>
             </div>
-            <pre class="overflow-x-auto px-5 py-6 font-mono text-[12px] leading-6 text-[#b9c3ba] sm:px-7 sm:py-8"><code><span class="code-line"><span class="text-[#78827a]">$</span> curl <span class="text-[#c8ff4a]">/api/v1/models</span> \</span><span class="code-line">  <span class="text-[#78827a]">--get</span> \</span><span class="code-line">  <span class="text-[#78827a]">--data-urlencode</span> <span class="text-[#c8ff4a]">"provider=openrouter"</span> \</span><span class="code-line">  <span class="text-[#78827a]">--data-urlencode</span> <span class="text-[#c8ff4a]">"capability=tools"</span></span></code></pre>
-            <div class="border-t hairline px-5 py-4 text-xs text-[#78827a] sm:px-7">Stable envelopes. Explicit metadata. No runtime network reads.</div>
+            <pre class="overflow-x-auto px-5 py-6 font-mono text-[12px] leading-6 text-[#b9c3ba] sm:px-7 sm:py-8"><code><span class="code-line"><span class="text-[#78827a]">$</span> curl <span class="text-[#c8ff4a]">/api/v1/models</span> \</span><span class="code-line">  <span class="text-[#78827a]">--get</span> \</span><span class="code-line">  <span class="text-[#78827a]">--data-urlencode</span> <span class="text-[#c8ff4a]">"view=summary"</span> \</span><span class="code-line">  <span class="text-[#78827a]">--data-urlencode</span> <span class="text-[#c8ff4a]">"capability=tools"</span> \</span><span class="code-line">  <span class="text-[#78827a]">--data-urlencode</span> <span class="text-[#c8ff4a]">"capability=structured_outputs"</span></span></code></pre>
+            <div class="border-t hairline px-5 py-4 text-xs text-[#78827a] sm:px-7">Discoverable facets. Compact shortlists. Full provenance on demand.</div>
           </div>
         </div>
       </section>
@@ -252,17 +254,17 @@
       <section class="mx-auto max-w-7xl px-5 py-24 sm:px-8 lg:px-10 lg:py-32">
         <div class="flex flex-col justify-between gap-10 border-t hairline pt-8 sm:flex-row sm:items-end">
           <div>
-            <h2 class="max-w-[12ch] text-4xl font-semibold leading-[0.98] tracking-[-0.055em] sm:text-5xl">Find the route that fits.</h2>
-            <p class="mt-5 max-w-[42ch] text-base leading-7 text-[#9ca59d]">Start with the API. Keep the full snapshot when you need to ask a different question.</p>
+            <h2 class="max-w-[12ch] text-4xl font-semibold leading-[0.98] tracking-[-0.055em] sm:text-5xl">Bring the task. Leave with a route.</h2>
+            <p class="mt-5 max-w-[42ch] text-base leading-7 text-[#9ca59d]">Use the skill to turn your constraints into a model, provider offer, reasoning configuration, and honest set of alternatives.</p>
           </div>
-          <a class="inline-flex h-11 shrink-0 items-center justify-center rounded-full bg-[#c8ff4a] px-5 text-sm font-semibold text-[#0b0d0c] transition duration-200 hover:-translate-y-0.5 hover:bg-[#d7ff7a] active:translate-y-0" href="api/v1/schema.json">Open the schema <span class="ml-2 text-base">↗</span></a>
+          <a class="inline-flex h-11 shrink-0 items-center justify-center rounded-full bg-[#c8ff4a] px-5 text-sm font-semibold text-[#0b0d0c] transition duration-200 hover:-translate-y-0.5 hover:bg-[#d7ff7a] active:translate-y-0" href="https://github.com/rodion-m/models-labyrinth/tree/main/.agents/skills/models-that-fits-my-task" target="_blank" rel="noreferrer">Open the skill <span class="ml-2 text-base">↗</span></a>
         </div>
       </section>
     </main>
 
     <footer class="border-t hairline">
       <div class="mx-auto flex max-w-7xl flex-col gap-4 px-5 py-8 text-xs text-[#78827a] sm:flex-row sm:items-center sm:justify-between sm:px-8 lg:px-10">
-        <p>Models Labyrinth / source-aware model data</p>
+        <p>Models Labyrinth / an evidence-backed path through model choice</p>
         <div class="flex items-center gap-5">
           <a class="acid-link" href="api/v1/health.json">Health</a>
           <a class="acid-link" href="https://github.com/rodion-m/models-labyrinth" target="_blank" rel="noreferrer">GitHub ↗</a>

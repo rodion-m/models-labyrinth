@@ -7,7 +7,7 @@ import { clearSnapshotCache, loadSnapshot } from "../src/db.js";
 import { canonicalModelId, splitOpenRouterVariant } from "../src/identity.js";
 import { normalizeMillionPricing, normalizeOpenRouterPricing, normalizePortkeyPricing } from "../src/price.js";
 import { mergeSnapshots } from "../src/merge.js";
-import { listModels, listOffers } from "../src/query.js";
+import { listFacets, listModels, listOffers } from "../src/query.js";
 import { refreshDatabase } from "../src/refresh.js";
 import { writeSnapshotAtomic } from "../src/storage.js";
 import { MODELS_DB_SCHEMA, assertSnapshotShape } from "../src/schema.js";
@@ -53,7 +53,72 @@ test("query filters nested offers, paginates and computes a transparent profile 
   const offers = listOffers(snapshot, new URLSearchParams("profile=rag-long-prefix&reasoning_effort=low"));
   assert.equal(offers.data.length, 1);
   assert.equal(offers.data[0].workload_profile_id, "rag-long-prefix");
+  assert.equal(offers.data[0].workload_profile?.input_tokens, 25_000);
   assert.ok((offers.data[0].estimated_cost_usd ?? 0) > 0);
+});
+
+test("custom workload profile calculates exact task cost and rejects incomplete input", () => {
+  const record = sourceRecord("models_dev", "openai/gpt-4o", "GPT-4o", "https://models.dev/catalog.json", "offer");
+  record.offers![0].pricing = normalizeMillionPricing({ input: 1, output: 2, cache_read: 0.2 });
+  const snapshot = mergeSnapshots(undefined, [result("models_dev", [record])], "2026-08-26T00:00:00.000Z");
+  const params = new URLSearchParams("profile=custom&input_tokens=10000&output_tokens=300&cached_input_ratio=0.5&requests_per_task=2&sort=cost");
+  const offer = listOffers(snapshot, params).data[0];
+  assert.equal(offer.estimated_cost_usd, 0.0132);
+  assert.deepEqual(offer.workload_profile, {
+    id: "custom",
+    description: "Caller-supplied workload profile.",
+    input_tokens: 10_000,
+    cached_input_ratio: 0.5,
+    output_tokens: 300,
+    requests_per_task: 2,
+  });
+  assert.throws(() => listOffers(snapshot, new URLSearchParams("profile=custom&input_tokens=10000")), /output_tokens is required/);
+  assert.throws(() => listOffers(snapshot, new URLSearchParams("sort=cost")), /requires profile/);
+});
+
+test("route filters use exact model and provider ids plus model modalities", () => {
+  const openai = sourceRecord("models_dev", "openai/gpt-4o", "GPT-4o", "https://models.dev/catalog.json", "openai-offer");
+  const router = sourceRecord("models_dev", "openai/gpt-4o-mini", "GPT-4o mini", "https://models.dev/catalog.json", "router-offer");
+  router.offers![0].provider_id = "openrouter";
+  openai.modalities!.input.push("image");
+  const snapshot = mergeSnapshots(undefined, [result("models_dev", [openai, router])], "2026-08-26T00:00:00.000Z");
+
+  assert.equal(listOffers(snapshot, new URLSearchParams("model=openai/gpt-4o&provider=openai&modality=input:image")).data.length, 1);
+  assert.equal(listOffers(snapshot, new URLSearchParams("model=openai/gpt-4o&provider=open")).data.length, 0);
+  assert.equal(listModels(snapshot, new URLSearchParams("provider=ai")).data.length, 0);
+  assert.equal(listModels(snapshot, new URLSearchParams("modality=input:image&view=summary")).data[0]?.identity_confidence, "exact");
+});
+
+test("cost estimate is unknown when required token prices conflict or are missing", () => {
+  const record = sourceRecord("models_dev", "openai/gpt-4o", "GPT-4o", "https://models.dev/catalog.json", "offer");
+  record.offers![0].pricing = normalizeMillionPricing({ input: 1 });
+  const snapshot = mergeSnapshots(undefined, [result("models_dev", [record])], "2026-08-26T00:00:00.000Z");
+  const params = new URLSearchParams("profile=custom&input_tokens=1000&output_tokens=100");
+  assert.equal(listOffers(snapshot, params).data[0].estimated_cost_usd, null);
+});
+
+test("selection navigation exposes facets, compact candidates, and offer-level gates", () => {
+  const record = sourceRecord("models_dev", "openai/gpt-4o", "GPT-4o", "https://models.dev/catalog.json", "offer");
+  record.offers![0].context_tokens = 128_000;
+  record.offers![0].reasoning_efforts = ["low", "high"];
+  record.offers![0].quantization = "fp8";
+  record.offers![0].runtime = [{ scope: "offer", throughput_tokens_per_second: { median: 80 }, evidence: record.evidence![0] }];
+  record.offers![0].pricing = normalizeMillionPricing({ input: 1, output: 2, cache_read: 0.2 });
+  const snapshot = mergeSnapshots(undefined, [result("models_dev", [record])], "2026-08-26T00:00:00.000Z");
+
+  const facets = listFacets(snapshot);
+  assert.ok(facets.capabilities.some((facet) => facet.value === "tools"));
+  assert.ok(facets.reasoning_efforts.some((facet) => facet.value === "high"));
+  assert.ok(facets.quantizations.some((facet) => facet.value === "fp8"));
+
+  const summary = listModels(snapshot, new URLSearchParams("view=summary&capability=tools&capability=structured_outputs")).data[0] as any;
+  assert.equal(summary.id, "openai/gpt-4o");
+  assert.equal(summary.offer_count, 1);
+  assert.equal(summary.offers, undefined);
+
+  const offers = listOffers(snapshot, new URLSearchParams("capability=tools&min_context=100000&has_runtime=true&has_cache_pricing=true&quantization=fp8"));
+  assert.equal(offers.data.length, 1);
+  assert.equal(listOffers(snapshot, new URLSearchParams("min_context=200000")).data.length, 0);
 });
 
 test("failed refresh never overwrites a valid previous snapshot", async () => {

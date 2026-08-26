@@ -4,7 +4,8 @@ import type { FlatOffer } from "./query.js";
 export interface IndexedModel {
   model: Model;
   search: string;
-  providerSearch: string;
+  providers: ReadonlySet<string>;
+  modalities: ReadonlySet<string>;
   capabilities: ReadonlySet<string>;
   efforts: ReadonlySet<string>;
   quantizations: ReadonlySet<string>;
@@ -18,7 +19,9 @@ export interface IndexedOffer {
   flat: FlatOffer;
   offer: Offer;
   search: string;
-  providerSearch: string;
+  providerId: string;
+  modelModalities: ReadonlySet<string>;
+  capabilities: ReadonlySet<string>;
   efforts: ReadonlySet<string>;
   quantization?: string;
 }
@@ -30,6 +33,7 @@ export interface QueryIndex {
   byAlias: Map<string, Model | undefined>;
   providers: Array<Record<string, unknown>>;
   benchmarks: Array<Record<string, unknown>>;
+  facets: Record<string, Array<{ value: string; model_count: number; offer_count?: number }>>;
 }
 
 const indexes = new WeakMap<Snapshot, QueryIndex>();
@@ -53,9 +57,52 @@ export function queryIndex(snapshot: Snapshot): QueryIndex {
     byAlias,
     providers: buildProviders(models),
     benchmarks: buildBenchmarks(models, snapshot),
+    facets: buildFacets(models),
   };
   indexes.set(snapshot, result);
   return result;
+}
+
+function buildFacets(models: IndexedModel[]): QueryIndex["facets"] {
+  const capabilities = new Map<string, { models: Set<string>; offers: number }>();
+  const efforts = new Map<string, { models: Set<string>; offers: number }>();
+  const quantizations = new Map<string, { models: Set<string>; offers: number }>();
+  const modalities = new Map<string, { models: Set<string>; offers: number }>();
+  const sources = new Map<string, { models: Set<string>; offers: number }>();
+
+  const add = (map: Map<string, { models: Set<string>; offers: number }>, value: string, modelId: string, offer = false) => {
+    const normalized = value.toLowerCase();
+    const current = map.get(normalized) ?? { models: new Set<string>(), offers: 0 };
+    current.models.add(modelId);
+    if (offer) current.offers += 1;
+    map.set(normalized, current);
+  };
+
+  for (const row of models) {
+    for (const capability of trueKeys(row.model.capabilities)) add(capabilities, capability, row.model.id);
+    for (const modality of row.model.modalities.input) add(modalities, `input:${modality}`, row.model.id);
+    for (const modality of row.model.modalities.output) add(modalities, `output:${modality}`, row.model.id);
+    for (const source of row.sources) add(sources, source, row.model.id);
+    for (const offer of row.model.offers) {
+      const offerCapabilities = new Set(trueKeys(offer.capabilities));
+      if (offer.reasoning_efforts.length > 0) offerCapabilities.add("reasoning");
+      for (const capability of offerCapabilities) add(capabilities, capability, row.model.id, true);
+      for (const effort of offer.reasoning_efforts) add(efforts, effort, row.model.id, true);
+      if (offer.quantization) add(quantizations, offer.quantization, row.model.id, true);
+    }
+  }
+
+  const rows = (map: Map<string, { models: Set<string>; offers: number }>) => [...map.entries()]
+    .map(([value, count]) => ({ value, model_count: count.models.size, ...(count.offers > 0 ? { offer_count: count.offers } : {}) }))
+    .sort((a, b) => b.model_count - a.model_count || a.value.localeCompare(b.value));
+
+  return {
+    capabilities: rows(capabilities),
+    reasoning_efforts: rows(efforts),
+    quantizations: rows(quantizations),
+    modalities: rows(modalities),
+    sources: rows(sources),
+  };
 }
 
 function indexModel(model: Model): IndexedModel {
@@ -67,7 +114,6 @@ function indexModel(model: Model): IndexedModel {
   const benchmarks = new Set<string>();
   for (const offer of model.offers) {
     providers.add(offer.provider_id.toLowerCase());
-    if (offer.provider_name) providers.add(offer.provider_name.toLowerCase());
     for (const effort of offer.reasoning_efforts) efforts.add(effort.toLowerCase());
     if (offer.reasoning_efforts.length > 0) capabilities.add("reasoning");
     for (const capability of trueKeys(offer.capabilities)) capabilities.add(capability);
@@ -77,12 +123,16 @@ function indexModel(model: Model): IndexedModel {
   for (const evidence of [...model.evidence, ...model.benchmarks.map((item) => item.evidence)]) sources.add(evidence.source_id.toLowerCase());
   for (const benchmark of model.benchmarks) benchmarks.add(benchmark.benchmark_id.toLowerCase());
   const search = [model.id, model.name, ...model.aliases.map((value) => value.id)].join(" ").toLowerCase();
-  const providerSearch = [...providers].join(" ");
+  const modalities = new Set([
+    ...model.modalities.input.map((value) => `input:${value.toLowerCase()}`),
+    ...model.modalities.output.map((value) => `output:${value.toLowerCase()}`),
+  ]);
   const maxContext = Math.max(model.context_tokens ?? 0, ...model.offers.map((offer) => offer.context_tokens ?? 0));
   return {
     model,
     search,
-    providerSearch,
+    providers,
+    modalities,
     capabilities,
     efforts,
     quantizations,
@@ -94,11 +144,18 @@ function indexModel(model: Model): IndexedModel {
 }
 
 function indexOffer(model: Model, offer: Offer): IndexedOffer {
+  const capabilities = new Set(trueKeys(offer.capabilities));
+  if (offer.reasoning_efforts.length > 0) capabilities.add("reasoning");
   return {
     flat: { ...offer, model_id: model.id, model_name: model.name },
     offer,
     search: `${model.id} ${model.name} ${offer.provider_model_id}`.toLowerCase(),
-    providerSearch: `${offer.provider_id} ${offer.provider_name ?? ""}`.toLowerCase(),
+    providerId: offer.provider_id.toLowerCase(),
+    modelModalities: new Set([
+      ...model.modalities.input.map((value) => `input:${value.toLowerCase()}`),
+      ...model.modalities.output.map((value) => `output:${value.toLowerCase()}`),
+    ]),
+    capabilities,
     efforts: new Set(offer.reasoning_efforts.map((value) => value.toLowerCase())),
     ...(offer.quantization ? { quantization: offer.quantization.toLowerCase() } : {}),
   };

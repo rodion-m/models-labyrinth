@@ -7,8 +7,8 @@
     "node": ">=22"
   },
   "scripts": {
-    "test": "tsx --test test/*.test.ts",
-    "test:live": "LIVE_TESTS=1 node --env-file-if-exists=.env node_modules/tsx/dist/cli.mjs --test test/*.test.ts",
+    "test": "tsx --test test/*.test.ts test/*.test.mjs",
+    "test:live": "LIVE_TESTS=1 node --env-file-if-exists=.env node_modules/tsx/dist/cli.mjs --test test/*.test.ts test/*.test.mjs",
     "update:db": "node --env-file-if-exists=.env node_modules/tsx/dist/cli.mjs scripts/update-db.ts",
     "build:static": "tsx scripts/build-static.ts",
     "typecheck": "tsc --noEmit",
