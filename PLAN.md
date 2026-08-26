@@ -290,6 +290,116 @@ is:
 | [Portkey pricing configs](https://github.com/Portkey-AI/models) | optional extra price dimensions such as batch/cache/audio/image/search/thinking; no quality or runtime claims |
 | BenchGecko, ModelCap, CloudPrice | optional derived cross-checks; never count their overlapping AA/OpenRouter values as independent measurements |
 
+## Model-selection remediation plan (2026-08-27)
+
+### Objective
+
+Make the common model-selection path current, comparable, route-correct, and
+fast without reducing the completeness of `models_db.json`. The full snapshot
+remains the archival source of truth; dynamic endpoints expose a smaller,
+selection-oriented view by default and require an explicit opt-in for the full
+historical catalog.
+
+### Domain terms
+
+- **Canonical model**: one base model identity. Source spellings, punctuation
+  aliases, dated snapshots, batch routes, reasoning modes, and gateway wrappers
+  must not become competing base models when the source provides enough evidence
+  to relate them safely.
+- **Offer**: one provider-accessible route for a canonical model, including its
+  provider model id, variant, status, limits, capabilities, pricing, runtime,
+  quantization, policy, and reasoning controls.
+- **Current scope**: the default selection catalog. It contains canonical models
+  with at least one active matching offer and excludes records that are clearly
+  historical, superseded, unresolved, or outside the documented recency window.
+  An unknown release date is allowed only when an active offer has fresh evidence.
+- **All scope**: the complete historical and unresolved catalog, selected with
+  `scope=all` or by downloading `snapshot.json`.
+- **Comparison lane**: benchmark observations with the same canonical benchmark,
+  metric, unit, variant, effort, evaluator, dataset version, and configuration.
+  Different lanes must never be averaged or ranked together implicitly.
+
+### Workstream A — core data and API (Grok 4.6)
+
+1. Add explicit lifecycle/selection metadata derived deterministically from the
+   snapshot timestamp, release date, identity confidence, active offers, and
+   evidence freshness. Default `/models`, `/offers`, and `/facets` to
+   `scope=current`; preserve `scope=all`, explicit release-date filters, and
+   transparent `meta.scope`, cutoff, and exclusion counts.
+2. Make model filtering route-correct: when provider, capability, effort,
+   quantization, context, runtime, cache, or supported-parameter constraints are
+   supplied together, one offer must satisfy all offer-scoped constraints.
+3. Strengthen conservative identity normalization for source-proven aliases that
+   differ only by known punctuation/date spellings. Represent `:batch` and other
+   routing/configuration suffixes as variants or offers. Do not introduce broad
+   fuzzy matching; ambiguous records remain unresolved. Add regression fixtures
+   for the Gemini, GPT, GLM, and Muse split identities found in the audited run.
+4. Add a paginated benchmark-observations endpoint. Return a stable `lane_id` and
+   allow filtering by benchmark, model, metric, unit, variant, effort, evaluator,
+   dataset version, source, and scope. Sorting by score is legal only within one
+   comparison lane; mixed lanes return a client error.
+5. Add strict query parsing. Unknown enum values, malformed booleans/numbers/dates,
+   unsupported sort keys, and incompatible argument combinations return HTTP 400
+   instead of silently broadening the query. Add `sort=released`; retain
+   `sort=updated` with its evidence-freshness meaning documented.
+6. Make workload cost results explicit and complete for supported dimensions.
+   Include cache write, cache read, request, applicable context tiers, and caller-
+   supplied reasoning-token usage. If a required dimension or tier cannot be
+   resolved unambiguously, return `null` plus machine-readable missing dimensions;
+   never emit an optimistic total as complete.
+7. Remove periodic reparsing of immutable Vercel deployment files. Generate a
+   compact deterministic runtime query artifact at build time while keeping the
+   complete snapshot and per-model static files. Keep module-scope parsed data and
+   indexes for the lifetime of an instance; a new deployment is the invalidation.
+8. Update JSON Schema, static projections, API documentation, health metadata,
+   and live/unit/contract tests. Preserve the twice-daily refresh workflow and
+   failure-safe snapshot semantics.
+
+### Workstream B — agent skill (Codex)
+
+1. Start model selection from `scope=current` and use `scope=all` only for an
+   explicit historical/open-ended request.
+2. Require offer-scoped compatibility before quality ranking and require one
+   comparison lane for every numeric leaderboard claim.
+3. Require a same-hash health/schema/snapshot bundle. Full-snapshot work must use
+   the validated downloader rather than an independent `curl`.
+4. Add one offline selection script that downloads or reuses a content-hash keyed
+   bundle, parses it once, resolves only source-proven aliases, groups benchmark
+   observations by lane, and emits auditable candidates without a universal score.
+5. Forbid transferring scores across model versions and forbid manual mean/median
+   aggregation across benchmark conditions. Require explicit weights and a
+   sensitivity check whenever a ranked recommendation is not a pure Pareto result.
+6. Update the data guide, response contract, examples, tests, edit log, skill
+   review, trigger tests, duplicate audit, and transfer validation.
+
+### Acceptance criteria
+
+- The audited architect-agent query returns only current canonical candidates by
+  default, and `scope=all` still exposes the complete catalog.
+- Provider plus capability/context/effort constraints cannot match across two
+  different offers.
+- Known punctuation/batch duplicate fixtures join without merging genuinely
+  different dated versions or model families.
+- Benchmark score sorting rejects mixed lanes and succeeds for an explicitly
+  selected lane with preserved provenance.
+- Invalid query values produce HTTP 400 and identify the invalid parameter.
+- Cost estimates either account for all declared workload dimensions and tiers or
+  state exactly why the total is unknown.
+- The runtime API does not parse the 70 MB archival snapshot on every cold start or
+  hourly TTL boundary; the full file remains downloadable.
+- Health and downloaded analysis data share one `content_hash`.
+- `npm run check`, focused skill tests, live deployment tests, skill review,
+  trigger tests, duplicate audit, and Claude/Codex transfer tests pass.
+
+### Integration and release
+
+Grok works in a dedicated worktree and commits the core/API changes. Codex works
+only on the canonical skill directory in the main checkout. Codex reviews and
+integrates the Grok commit, resolves documentation/schema coupling, refreshes the
+real snapshot if the schema or identity projection changes, runs all gates, then
+commits and pushes one coherent result. Vercel deployment and the scheduled refresh
+workflow are verified after the remote `main` ref moves.
+
 OpenRouter's cache usage and reasoning-token fields are real request metadata,
 not universal per-model cache-hit or effort curves. The case-specific fields
 therefore enter the database only when an upstream source publishes them; the
