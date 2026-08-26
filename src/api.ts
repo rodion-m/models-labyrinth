@@ -35,6 +35,6 @@ export function redirect(response: ApiResponse, location: string, status = 302):
   response.end();
 }
 
-export function sendError(response: ApiResponse, status: number, message: string): void {
-  sendJson(response, { error: { status, message } }, status);
+export function sendError(response: ApiResponse, status: number, message: string, parameter?: string): void {
+  sendJson(response, { error: { status, message, ...(parameter ? { parameter } : {}) } }, status);
 }

@@ -1,4 +1,4 @@
-import { canonicalModelId, alias } from "../identity.js";
+import { canonicalModelId, alias, splitRoutingVariant } from "../identity.js";
 import type { Evidence, Model, Offer, SourceRecord } from "../types.js";
 import { mergeCapabilities, modalities, reasoningSupport } from "../source-utils.js";
 import { arrayOfStrings, boolValue, numberValue, stringValue } from "../utils.js";
@@ -78,12 +78,14 @@ export function offer(input: {
   runtime?: Offer["runtime"];
   evidence: Evidence[];
 }): Offer {
+  const providerModelId = stringValue(input.providerModelId) ?? "unknown";
+  const variant = stringValue(input.variant) ?? splitRoutingVariant(providerModelId).variant;
   return {
     id: input.id,
     provider_id: input.providerId,
     ...(stringValue(input.providerName) ? { provider_name: stringValue(input.providerName) } : {}),
-    provider_model_id: stringValue(input.providerModelId) ?? "unknown",
-    ...(stringValue(input.variant) ? { variant: stringValue(input.variant) } : {}),
+    provider_model_id: providerModelId,
+    ...(variant ? { variant } : {}),
     status: "active",
     ...(stringValue(input.quantization) ? { quantization: stringValue(input.quantization) } : {}),
     ...(numberValue(input.contextTokens) !== undefined ? { context_tokens: numberValue(input.contextTokens) } : {}),

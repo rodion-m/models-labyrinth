@@ -7,3 +7,4 @@ public/
 work/
 *.tmp
 .vercel
+runtime-query.json

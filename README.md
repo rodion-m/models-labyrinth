@@ -36,12 +36,12 @@ upstream APIs/feeds
         -> Vercel /api/v1/* or static GitHub Pages projection
 ```
 
-`models_db.json` remains the only complete portable snapshot. The API loads it
-on cold start, caches it at module scope for up to one hour, and builds a
-compact index for filters and O(1) model lookup by id/alias. While the cache is
-fresh, requests do not parse the JSON again; after the TTL, the next request
-reloads, validates, and indexes the file. All responses use CDN cache headers
-with the same one-hour TTL.
+`models_db.json` remains the only complete portable snapshot. Deployments
+parse a compact build-time `runtime-query.json` artifact once per Function
+instance, cache the snapshot and query index for the life of that instance, and
+invalidate on a new deployment. The archival JSON is not reparsed on an hourly
+timer. All responses still use CDN cache headers with a one-hour TTL. The
+full snapshot stays downloadable as `/api/v1/snapshot.json`.
 
 Streaming JSON parsers and NDJSON are intentionally not used in the hot path:
 an arbitrary filter still has to scan the whole array, so streaming reduces
@@ -107,23 +107,39 @@ All collection endpoints return an envelope with `data` and `meta`:
 ```
 
 - `GET /api/v1/models?q=gpt&provider=openrouter&capability=tools&limit=50`
-- `GET /api/v1/models?view=summary&capability=tools&capability=structured_outputs&limit=100`
+- `GET /api/v1/models?view=summary&capability=tools&capability=structured_outputs&sort=released&limit=100`
+- `GET /api/v1/models?scope=all&released_after=2024-01-01`
 - `GET /api/v1/models/:id`
 - `GET /api/v1/offers?model=openai/gpt-5&provider=openrouter&capability=tools&has_runtime=true&profile=rag-long-prefix&sort=cost`
-- `GET /api/v1/offers?capability=structured_outputs&profile=custom&input_tokens=10000&output_tokens=300&cached_input_ratio=0.5&sort=cost`
+- `GET /api/v1/offers?capability=structured_outputs&profile=custom&input_tokens=10000&output_tokens=300&cached_input_ratio=0.5&cache_write_tokens=4000&reasoning_tokens=200&sort=cost`
 - `GET /api/v1/facets` — discover current capability, effort, quantization, modality, and source values.
 - `GET /api/v1/providers`
 - `GET /api/v1/benchmarks?kind=benchmark&q=terminal` — canonical benchmark catalog; `kind` accepts `benchmark`, `index`, `aggregate`, or `claim`, while `q` also matches upstream aliases.
+- `GET /api/v1/benchmark-observations?benchmark=coding.terminalBench21&effort=high` — paginated observations with a stable `lane_id`. `sort=score` is allowed only inside one comparison lane.
 - `GET /api/v1/profiles`
 - `GET /api/v1/health`
 - `GET /api/v1/schema` — JSON Schema for the complete `models_db.json`.
 - `GET /api/v1/snapshot` — redirect to the full static `snapshot.json`.
 
+`/models`, `/offers`, and `/facets` default to `scope=current`: canonical models
+with at least one active offer, excluding unresolved identities and releases
+older than the documented 36-month recency window measured from
+`generated_at`. An unknown release date is allowed only when an active offer
+has fresh evidence. `scope=all` returns the complete catalog. Responses include
+`meta.scope`, `meta.recency_cutoff`, and `meta.excluded_count`. `sort=updated`
+orders by evidence freshness; `sort=released` orders by `release_date`.
+Unknown enum values, malformed booleans/numbers/dates, unsupported sort keys,
+and incompatible argument combinations return HTTP 400 with `error.parameter`.
+
 Model filters cover id/name/alias, provider, capability, reasoning effort,
-modality, quantization, source, benchmark, open weights, minimum context, and sorting.
-Use `view=summary` for broad candidate discovery; fetch full records only for
-the shortlist. Summary pages are capped at 100 rows; full-record pages are
-capped at 10 to stay safely below serverless response limits. Repeated or comma-separated capabilities are ANDed. Repeated
+modality, quantization, source, benchmark, open weights, minimum context,
+supported parameters, runtime/cache presence, release-date bounds, and sorting.
+When provider, capability, effort, quantization, context, runtime, cache, or
+supported-parameter constraints are supplied together, one offer must satisfy
+all of them. Use `view=summary` for broad candidate discovery; fetch full
+records only for the shortlist. Summary pages are capped at 100 rows;
+full-record pages are capped at 10 to stay safely below serverless response
+limits. Repeated or comma-separated capabilities are ANDed. Repeated
 providers, efforts, quantizations, and sources are ORed. Provider values are
 exact provider ids; use `/providers` to discover them.
 
@@ -132,19 +148,27 @@ exact model ids, modalities, presence of runtime observations, presence of decla
 estimate, and workload profile. `sort=cost` requires a profile; `sort=context`
 does not. Use `profile=custom` with required `input_tokens` and `output_tokens`
 when the named profiles do not match the task; `cached_input_ratio` defaults to
-zero and `requests_per_task` to one. `estimated_cost_usd` is only a deterministic
-calculation from unambiguous fixed input/output, cache-read, and request prices.
-It assumes a warm cache and excludes cache writes, thinking tokens, tiered or
-scheduled prices, and non-token media. Unknown or conflicting prices return
-`null`; the estimate is not measured cost or a latency prediction.
+zero and `requests_per_task` to one. Optional `cache_write_tokens` and
+`reasoning_tokens` are supported on any profile. `estimated_cost_usd` is a
+deterministic calculation from unambiguous input, output, cache-read,
+cache-write, request, reasoning, and applicable context-tier prices. If a
+required dimension or tier cannot be resolved, the total is `null` and
+`missing_dimensions` names exactly what is missing. The estimate is not
+measured cost or a latency prediction.
+
+Benchmark observations keep comparison conditions attached. A `lane_id` is the
+canonical benchmark plus metric, unit, variant, effort, evaluator, dataset
+version, and configuration. Sorting by score is a client error unless the
+result set is a single lane.
 
 Vercel Functions have a 4.5 MB response-body limit, so collection pages are
 limited to 100 items. For complete offline analysis, use the static
 `/api/v1/snapshot.json` and `/api/v1/schema.json` on GitHub Pages or Vercel.
-`vercel.json` runs the static build on deploy and includes `models_db.json` in
-the dynamic API function bundle. The full snapshot is served as a static file,
-not through a Function. When `SNAPSHOT_DOWNLOAD_URL` is set, the snapshot
-redirect can point directly to a GitHub/GitHub Pages URL.
+`vercel.json` runs the static build on deploy and includes `runtime-query.json`
+in the dynamic API function bundle. The full snapshot is served as a static
+file, not through a Function. When `SNAPSHOT_DOWNLOAD_URL` is set, the snapshot
+redirect can point directly to a GitHub/GitHub Pages URL. Health and the
+downloaded snapshot share one `content_hash`.
 
 ## Local development
 
@@ -181,8 +205,8 @@ tests, builds the static projection, commits a changed `models_db.json`, and
 publishes GitHub Pages in the same job.
 
 On Vercel, a new snapshot enters the runtime only after a new deployment. The
-one-hour TTL prevents indefinite caching inside a long-lived instance, but it
-cannot change files in an immutable deployment by itself.
+in-process cache lasts for the instance lifetime; a new deployment is the
+invalidation. Immutable deployment files are not reparsed on a timer.
 
 The static projection contains:
 
@@ -192,8 +216,12 @@ The static projection contains:
 - `api/v1/schema.json` — schema;
 - `api/v1/models.json` and `api/v1/models/index.json` — compact model index;
 - `api/v1/models/<base64url-id>.json` — individual model records;
-- `api/v1/offers.json` — first page of the flat offer representation;
+- `api/v1/offers.json` — first page of the current-scope flat offer representation;
+- `api/v1/benchmark-observations.json` — first page of current-scope observations;
 - `api/v1/providers.json`, `benchmarks.json`, `profiles.json`, `facets.json`, `health.json`.
+The deploy also writes `runtime-query.json` at the repository root for the
+Vercel Function bundle. It is derived from the snapshot, shares `content_hash`,
+and is not a second archival source of truth.
 
 Use `models_db.json` for the complete offer list. Static `offers.json` is
 intentionally limited to the same page size as the dynamic API so it does not

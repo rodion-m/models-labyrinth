@@ -1,16 +1,18 @@
 import { createHash } from "node:crypto";
 import { slugify, stringValue } from "./utils.js";
 
-const OPENROUTER_VARIANTS = new Set(["free", "thinking", "nitro", "floor", "exacto"]);
+const ROUTING_VARIANTS = new Set(["free", "thinking", "nitro", "floor", "exacto", "batch", "extended"]);
 
-export function splitOpenRouterVariant(rawId: string): { baseId: string; variant?: string } {
+export function splitRoutingVariant(rawId: string): { baseId: string; variant?: string } {
   const index = rawId.lastIndexOf(":");
   if (index < 0) return { baseId: rawId };
   const suffix = rawId.slice(index + 1).toLowerCase();
-  return OPENROUTER_VARIANTS.has(suffix)
+  return ROUTING_VARIANTS.has(suffix)
     ? { baseId: rawId.slice(0, index), variant: suffix }
     : { baseId: rawId };
 }
+
+export const splitOpenRouterVariant = splitRoutingVariant;
 
 function normalizePath(value: string): string {
   return value
@@ -24,6 +26,41 @@ function normalizePath(value: string): string {
     .replace(/^\/+|\/+$/g, "");
 }
 
+function compactDateToIso(value: string): string | undefined {
+  const year = Number(value.slice(0, 4));
+  const month = Number(value.slice(4, 6));
+  const day = Number(value.slice(6, 8));
+  if (!Number.isInteger(year) || !Number.isInteger(month) || !Number.isInteger(day)) return undefined;
+  if (year < 1990 || year > 2100 || month < 1 || month > 12 || day < 1 || day > 31) return undefined;
+  const iso = `${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+  const parsed = Date.parse(`${iso}T00:00:00.000Z`);
+  if (!Number.isFinite(parsed)) return undefined;
+  if (new Date(parsed).toISOString().slice(0, 10) !== iso) return undefined;
+  return iso;
+}
+
+function normalizeDateSpellings(value: string): string {
+  return value
+    .replace(/\d{4}\.\d{2}\.\d{2}/g, (match) => compactDateToIso(match.replaceAll(".", "")) ?? match)
+    .replace(/(^|[^0-9])(\d{8})(?=[^0-9]|$)/g, (match, prefix: string, digits: string) => {
+      const iso = compactDateToIso(digits);
+      return iso ? `${prefix}${iso}` : match;
+    });
+}
+
+function normalizeVersionPunctuation(value: string): string {
+  const dates: string[] = [];
+  const protectedValue = value.replace(/\d{4}-\d{2}-\d{2}/g, (match) => {
+    dates.push(match);
+    return `\0D${dates.length - 1}\0`;
+  });
+  const converted = protectedValue.replace(/(^|[^0-9])(\d{1,2})-(\d{1,2})(?=[^0-9]|$)/g, (match, prefix: string, left: string, right: string) => {
+    if (left.length === 1 || right.length === 1) return `${prefix}${left}.${right}`;
+    return match;
+  });
+  return converted.replace(/\0D(\d+)\0/g, (_, index: string) => dates[Number(index)]);
+}
+
 export function canonicalModelId(input: {
   sourceId: string;
   rawId?: unknown;
@@ -31,8 +68,8 @@ export function canonicalModelId(input: {
   name?: unknown;
 }): { id: string; sourceModelId: string; variant?: string; confidence: "exact" | "alias" | "unresolved" } {
   const sourceModelId = stringValue(input.rawId) ?? stringValue(input.name) ?? "unknown";
-  const split = input.sourceId === "openrouter" ? splitOpenRouterVariant(sourceModelId) : { baseId: sourceModelId };
-  const base = normalizePath(split.baseId);
+  const split = splitRoutingVariant(sourceModelId);
+  const base = normalizeVersionPunctuation(normalizeDateSpellings(normalizePath(split.baseId)));
   if (base.includes("/")) {
     return { id: base, sourceModelId, variant: split.variant, confidence: "exact" };
   }

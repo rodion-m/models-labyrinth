@@ -7,6 +7,7 @@ export default function handler(request: ApiRequest, response: ApiResponse): voi
   try {
     sendJson(response, listOffers(loadSnapshot(), paramsFor(request)));
   } catch (error) {
-    sendError(response, error instanceof QueryInputError ? 400 : 500, error instanceof Error ? error.message : "unable to read snapshot");
+    if (error instanceof QueryInputError) return sendError(response, 400, error.message, error.parameter);
+    sendError(response, 500, error instanceof Error ? error.message : "unable to read snapshot");
   }
 }

@@ -1,5 +1,6 @@
 import type { Model, Offer, Snapshot } from "./types.js";
 import type { FlatOffer } from "./query.js";
+import { inCurrentScope, offerInCurrentScope } from "./scope.js";
 
 export interface IndexedModel {
   model: Model;
@@ -14,17 +15,25 @@ export interface IndexedModel {
   benchmarkAliases: ReadonlySet<string>;
   maxContext: number;
   latest: string;
+  inCurrentScope: boolean;
+  indexedOffers: IndexedOffer[];
 }
 
 export interface IndexedOffer {
   flat: FlatOffer;
   offer: Offer;
+  model: Model;
   search: string;
   providerId: string;
   modelModalities: ReadonlySet<string>;
   capabilities: ReadonlySet<string>;
   efforts: ReadonlySet<string>;
+  parameters: ReadonlySet<string>;
+  sources: ReadonlySet<string>;
   quantization?: string;
+  hasRuntime: boolean;
+  hasCachePricing: boolean;
+  inCurrentScope: boolean;
 }
 
 export interface QueryIndex {
@@ -34,7 +43,16 @@ export interface QueryIndex {
   byAlias: Map<string, Model | undefined>;
   providers: Array<Record<string, unknown>>;
   benchmarks: Array<Record<string, unknown>>;
-  facets: Record<string, Array<{ value: string; model_count: number; offer_count?: number }>>;
+  facets: Facets;
+  facetsAll: Facets;
+}
+
+export interface Facets {
+  capabilities: Array<{ value: string; model_count: number; offer_count?: number }>;
+  reasoning_efforts: Array<{ value: string; model_count: number; offer_count?: number }>;
+  quantizations: Array<{ value: string; model_count: number; offer_count?: number }>;
+  modalities: Array<{ value: string; model_count: number; offer_count?: number }>;
+  sources: Array<{ value: string; model_count: number; offer_count?: number }>;
 }
 
 const indexes = new WeakMap<Snapshot, QueryIndex>();
@@ -43,8 +61,8 @@ export function queryIndex(snapshot: Snapshot): QueryIndex {
   const existing = indexes.get(snapshot);
   if (existing) return existing;
 
-  const models = snapshot.models.map(indexModel);
-  const offers = models.flatMap((row) => row.model.offers.map((offer) => indexOffer(row.model, offer)));
+  const models = snapshot.models.map((model) => indexModel(model, snapshot.generated_at));
+  const offers = models.flatMap((row) => row.indexedOffers);
   const byId = new Map(models.map((row) => [row.model.id, row.model]));
   const byAlias = new Map<string, Model | undefined>();
   for (const row of models) for (const alias of row.model.aliases) {
@@ -58,13 +76,14 @@ export function queryIndex(snapshot: Snapshot): QueryIndex {
     byAlias,
     providers: buildProviders(models),
     benchmarks: buildBenchmarks(models, snapshot),
-    facets: buildFacets(models),
+    facets: buildFacets(models.filter((row) => row.inCurrentScope)),
+    facetsAll: buildFacets(models),
   };
   indexes.set(snapshot, result);
   return result;
 }
 
-function buildFacets(models: IndexedModel[]): QueryIndex["facets"] {
+function buildFacets(models: IndexedModel[]): Facets {
   const capabilities = new Map<string, { models: Set<string>; offers: number }>();
   const efforts = new Map<string, { models: Set<string>; offers: number }>();
   const quantizations = new Map<string, { models: Set<string>; offers: number }>();
@@ -106,7 +125,7 @@ function buildFacets(models: IndexedModel[]): QueryIndex["facets"] {
   };
 }
 
-function indexModel(model: Model): IndexedModel {
+function indexModel(model: Model, generatedAt: string): IndexedModel {
   const providers = new Set<string>();
   const capabilities = new Set<string>(trueKeys(model.capabilities));
   const efforts = new Set<string>();
@@ -133,7 +152,7 @@ function indexModel(model: Model): IndexedModel {
     ...model.modalities.output.map((value) => `output:${value.toLowerCase()}`),
   ]);
   const maxContext = Math.max(model.context_tokens ?? 0, ...model.offers.map((offer) => offer.context_tokens ?? 0));
-  return {
+  const indexed: IndexedModel = {
     model,
     search,
     providers,
@@ -146,24 +165,34 @@ function indexModel(model: Model): IndexedModel {
     benchmarkAliases,
     maxContext,
     latest: model.evidence.map((value) => value.fetched_at).sort().at(-1) ?? "",
+    inCurrentScope: inCurrentScope(model, generatedAt),
+    indexedOffers: [],
   };
+  indexed.indexedOffers = model.offers.map((offer) => indexOffer(indexed, offer, generatedAt));
+  return indexed;
 }
 
-function indexOffer(model: Model, offer: Offer): IndexedOffer {
+function indexOffer(row: IndexedModel, offer: Offer, generatedAt: string): IndexedOffer {
   const capabilities = new Set(trueKeys(offer.capabilities));
   if (offer.reasoning_efforts.length > 0) capabilities.add("reasoning");
   return {
-    flat: { ...offer, model_id: model.id, model_name: model.name },
+    flat: { ...offer, model_id: row.model.id, model_name: row.model.name },
     offer,
-    search: `${model.id} ${model.name} ${offer.provider_model_id}`.toLowerCase(),
+    model: row.model,
+    search: `${row.model.id} ${row.model.name} ${offer.provider_model_id}`.toLowerCase(),
     providerId: offer.provider_id.toLowerCase(),
     modelModalities: new Set([
-      ...model.modalities.input.map((value) => `input:${value.toLowerCase()}`),
-      ...model.modalities.output.map((value) => `output:${value.toLowerCase()}`),
+      ...row.model.modalities.input.map((value) => `input:${value.toLowerCase()}`),
+      ...row.model.modalities.output.map((value) => `output:${value.toLowerCase()}`),
     ]),
     capabilities,
     efforts: new Set(offer.reasoning_efforts.map((value) => value.toLowerCase())),
+    parameters: new Set(offer.supported_parameters.map((value) => value.toLowerCase())),
+    sources: new Set(offer.evidence.map((evidence) => evidence.source_id.toLowerCase())),
     ...(offer.quantization ? { quantization: offer.quantization.toLowerCase() } : {}),
+    hasRuntime: offer.runtime.length > 0,
+    hasCachePricing: offer.pricing.some((price) => (price.dimension === "cache_read" || price.dimension === "cache_write") && price.amount_usd_per_unit !== null),
+    inCurrentScope: offerInCurrentScope(row.model, offer, generatedAt),
   };
 }
 

@@ -214,6 +214,8 @@ export interface WorkloadProfile {
   cached_input_ratio: number;
   output_tokens: number;
   requests_per_task: number;
+  cache_write_tokens?: number;
+  reasoning_tokens?: number;
 }
 
 export interface ApiEnvelope<T> {
@@ -225,7 +227,22 @@ export interface ApiEnvelope<T> {
     has_more: boolean;
     updated_at: string;
     schema_version: string;
+    scope?: "current" | "all";
+    recency_cutoff?: string;
+    excluded_count?: number;
   };
+}
+
+export interface RuntimeQueryArtifact {
+  artifact_kind: "runtime_query";
+  schema_version: Snapshot["schema_version"];
+  generated_at: string;
+  content_hash: string;
+  workload_profiles: WorkloadProfile[];
+  sources: SourceStatus[];
+  benchmarks: BenchmarkDefinition[];
+  models: Array<Omit<Model, "benchmarks">>;
+  observations: Array<BenchmarkObservation & { model_id: string; lane_id: string }>;
 }
 
 export interface FetchOptions {

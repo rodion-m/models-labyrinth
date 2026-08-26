@@ -4,6 +4,7 @@ import modelsHandler from "../api/v1/models.js";
 import offersHandler from "../api/v1/offers.js";
 import facetsHandler from "../api/v1/facets.js";
 import benchmarksHandler from "../api/v1/benchmarks.js";
+import observationsHandler from "../api/v1/benchmark-observations.js";
 import schemaHandler from "../api/v1/schema.js";
 import snapshotHandler from "../api/v1/snapshot.js";
 import type { ApiResponse } from "../src/api.js";
@@ -51,7 +52,42 @@ test("offers handler reports invalid custom workloads as client errors", () => {
   const response = fakeResponse();
   offersHandler({ url: "/api/v1/offers?profile=custom&input_tokens=1000" }, response);
   assert.equal(response.statusCode, 400);
+  assert.equal((response.body as any).error.parameter, "output_tokens");
   assert.match((response.body as any).error.message, /output_tokens is required/);
+});
+
+test("invalid enum values identify the parameter with HTTP 400", () => {
+  const response = fakeResponse();
+  modelsHandler({ url: "/api/v1/models?scope=fresh" }, response);
+  assert.equal(response.statusCode, 400);
+  assert.equal((response.body as any).error.parameter, "scope");
+});
+
+test("benchmark observations reject mixed-lane score sorts", () => {
+  const mixed = fakeResponse();
+  observationsHandler({ url: "/api/v1/benchmark-observations?sort=score&limit=1" }, mixed);
+  assert.equal(mixed.statusCode, 400);
+  assert.equal((mixed.body as any).error.parameter, "sort");
+
+  const listed = fakeResponse();
+  observationsHandler({ url: "/api/v1/benchmark-observations?limit=1" }, listed);
+  assert.equal(listed.statusCode, 200);
+  assert.ok((listed.body as any).data[0].lane_id);
+  const laneId = (listed.body as any).data[0].lane_id;
+  const sorted = fakeResponse();
+  observationsHandler({ url: `/api/v1/benchmark-observations?lane_id=${laneId}&sort=score&limit=1` }, sorted);
+  assert.equal(sorted.statusCode, 200);
+  assert.equal((sorted.body as any).data[0].lane_id, laneId);
+});
+
+test("models and facets default to current scope metadata", () => {
+  const models = fakeResponse();
+  modelsHandler({ url: "/api/v1/models?view=summary&limit=1" }, models);
+  assert.equal((models.body as any).meta.scope, "current");
+  assert.ok((models.body as any).meta.recency_cutoff);
+  const facets = fakeResponse();
+  facetsHandler({ url: "/api/v1/facets" }, facets);
+  assert.equal((facets.body as any).data.meta.scope, "current");
 });
 
 test("schema handler exposes the same JSON Schema contract", () => {

@@ -158,7 +158,7 @@ export const MODELS_DB_SCHEMA = {
     workload_profile: {
       type: "object",
       required: ["id", "description", "input_tokens", "cached_input_ratio", "output_tokens", "requests_per_task"],
-      properties: { id: { type: "string" }, description: { type: "string" }, input_tokens: { type: "integer" }, cached_input_ratio: { type: "number", minimum: 0, maximum: 1 }, output_tokens: { type: "integer" }, requests_per_task: { type: "integer", minimum: 1 } },
+      properties: { id: { type: "string" }, description: { type: "string" }, input_tokens: { type: "integer" }, cached_input_ratio: { type: "number", minimum: 0, maximum: 1 }, output_tokens: { type: "integer" }, requests_per_task: { type: "integer", minimum: 1 }, cache_write_tokens: { type: "integer", minimum: 0 }, reasoning_tokens: { type: "integer", minimum: 0 } },
       additionalProperties: true,
     },
   },
