@@ -3,7 +3,7 @@
   "buildCommand": "npm run build:static",
   "functions": {
     "api/**/*.ts": {
-      "includeFiles": ["models_db.json"]
+      "includeFiles": "models_db.json"
     }
   }
 }
