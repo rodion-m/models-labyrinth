@@ -53,6 +53,30 @@ const ALIASES = new Map<string, string>([
   ["multilingual.swemultilingual", "coding.sweMultilingual"],
   ["multimodalgrounded.swemultimodal", "coding.sweMultimodal"],
   ["agentic.aaterminalbench21", "coding.terminalBench21"],
+  ["aaautomationbench", "agentic.automationBench"],
+  ["agentic.aaautomationbench", "agentic.automationBench"],
+  ["aabriefcaseelo", "agentic.briefcaseElo"],
+  ["agentic.aabriefcaseelo", "agentic.briefcaseElo"],
+  ["aaenterpriseopsgym", "agentic.enterpriseOpsGym"],
+  ["agentic.aaenterpriseopsgym", "agentic.enterpriseOpsGym"],
+  ["aaitbench", "agentic.itBench"],
+  ["agentic.aaitbench", "agentic.itBench"],
+  ["aatau3banking", "agentic.tau3Bench"],
+  ["agentic.aatau3banking", "agentic.tau3Bench"],
+  ["apexagents", "agentic.apexAgents"],
+  ["apexagentsaa", "agentic.apexAgents"],
+  ["automationbench", "agentic.automationBench"],
+  ["bankertoolbench", "agentic.bankerToolBench"],
+  ["briefcaseelo", "agentic.briefcaseElo"],
+  ["ctirealm", "agentic.ctiRealm"],
+  ["cybench", "agentic.cybench"],
+  ["cybergym", "agentic.cyberGym"],
+  ["enterpriseopsgym", "agentic.enterpriseOpsGym"],
+  ["gdpvalrubrics", "agentic.gdpvalRubrics"],
+  ["itbench", "agentic.itBench"],
+  ["jobbench", "agentic.jobBench"],
+  ["spreadsheetbench2", "agentic.spreadsheetBench2"],
+  ["tau3bench", "agentic.tau3Bench"],
   ["agentic.apexagentsaa", "agentic.apexAgents"],
   ["agentic.mcpatlasclaimcoverage", "agentic.mcpAtlas"],
   ["agentic.toolathlonverifiedavgturns", "agentic.toolathlonVerified"],
@@ -87,6 +111,13 @@ const ALIASES = new Map<string, string>([
   ["hmmtfeb2025", "math.hmmtFeb2025"],
   ["gdpvalaa", "professional.gdpvalAa"],
   ["gdpvalaanormalized", "professional.gdpvalAa"],
+  ["agentic.gdpvalaa", "professional.gdpvalAa"],
+  ["agentic.gdpvalaanormalized", "professional.gdpvalAa"],
+  ["healthbenchprofessional", "knowledge.healthBenchProfessional"],
+  ["healthbenchprofessionalraw", "knowledge.healthBenchProfessional"],
+  ["knowledge.healthbenchprofessionalraw", "knowledge.healthBenchProfessional"],
+  ["officeqa", "multimodalGrounded.officeQa"],
+  ["officeqapro", "multimodalGrounded.officeQaPro"],
   ["toolathlonverifiedpass3", "agentic.toolathlonVerified"],
   ["toolathlonverifiedpass3all", "agentic.toolathlonVerified"],
   ["toolathlonverified", "agentic.toolathlonVerified"],
@@ -136,11 +167,19 @@ const METRICS = new Map<string, string>([
   ["agentic.toolathlonverifiedpass3", "pass_at_3"],
   ["agentic.toolathlonverifiedpass3all", "pass_all_3"],
   ["gdpvalaanormalized", "normalized_score"],
+  ["agentic.gdpvalaanormalized", "normalized_score"],
+  ["healthbenchprofessionalraw", "raw_score"],
+  ["knowledge.healthbenchprofessionalraw", "raw_score"],
   ["toolathlonverifiedpass3", "pass_at_3"],
   ["toolathlonverifiedpass3all", "pass_all_3"],
 ]);
 
 const CANONICAL_NAMES = new Map<string, string>([
+  ["agentic.automationbench", "AutomationBench"],
+  ["agentic.briefcaseelo", "Briefcase"],
+  ["agentic.enterpriseopsgym", "EnterpriseOps-Gym"],
+  ["agentic.itbench", "ITBench"],
+  ["agentic.tau3bench", "τ³-bench"],
   ["agentic.toolathlonverified", "Toolathlon Verified"],
 ]);
 
@@ -160,12 +199,14 @@ export function canonicalizeBenchmarkObservation(observation: BenchmarkObservati
   const rawIds = observation.source_benchmark_ids ?? [observation.benchmark_id];
   const canonicalId = canonicalBenchmarkId(observation.benchmark_id);
   const inferredEvaluator = benchmarkEvaluator(observation.benchmark_id);
+  const inferredVariant = observation.benchmark_id.toLowerCase().endsWith("aatau3banking") ? "banking" : undefined;
   return {
     ...observation,
     benchmark_id: canonicalId,
     kind: observation.kind ?? benchmarkKind(canonicalId),
     source_benchmark_ids: [...new Set(rawIds)].sort(),
     ...(observation.evaluator ? { evaluator: observation.evaluator } : inferredEvaluator ? { evaluator: inferredEvaluator } : {}),
+    ...(observation.variant ? { variant: observation.variant } : inferredVariant ? { variant: inferredVariant } : {}),
     ...(observation.metric ? { metric: observation.metric } : METRICS.get(observation.benchmark_id.toLowerCase()) ? { metric: METRICS.get(observation.benchmark_id.toLowerCase()) } : {}),
   };
 }
@@ -176,7 +217,8 @@ function benchmarkEvaluator(rawId: string): string | undefined {
   if (normalized.startsWith("benchgecko.helm-")) return "helm";
   if (normalized.startsWith("benchgecko.oc-")) return "opencompass";
   if (normalized.startsWith("aa") || normalized.split(".").some((part) => part.startsWith("aa"))
-    || normalized.endsWith("apexagentsaa") || normalized.endsWith("gdpvalaa")) return "artificial_analysis";
+    || normalized.endsWith("apexagentsaa") || normalized.endsWith("gdpvalaa")
+    || normalized.endsWith("gdpvalaanormalized")) return "artificial_analysis";
   return undefined;
 }
 

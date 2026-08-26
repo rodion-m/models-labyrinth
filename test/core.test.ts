@@ -14,7 +14,7 @@ import { MODELS_DB_SCHEMA, assertSnapshotShape } from "../src/schema.js";
 import { collectOpenRouter } from "../src/sources/openrouter.js";
 import { collectBenchGecko, collectCloudPrice } from "../src/sources/enrichment.js";
 import { collectVals, parseValsBenchmarkPage, parseValsCatalog, parseValsRsiBundle } from "../src/sources/vals.js";
-import type { Snapshot, SourceRecord, SourceResult } from "../src/types.js";
+import type { BenchmarkDefinition, Snapshot, SourceRecord, SourceResult } from "../src/types.js";
 
 test("price normalization preserves dimensions, units, zero and variable values", () => {
   const openRouter = normalizeOpenRouterPricing({ prompt: "0.0000025", completion: "0", web_search: "0.0025", request: "-1", overrides: [{ utc_days: ["saturday"], prompt: "0.000001" }] });
@@ -61,6 +61,53 @@ test("benchmark aliases share one canonical identity without losing source prove
   assert.equal(listBenchmarks(snapshot).length, 1);
   assert.deepEqual(listBenchmarks(snapshot)[0].aliases, ["agentic.terminalBench21", "terminalBench21", "vals.terminal-bench-2-1"]);
   assert.equal(listModels(snapshot, new URLSearchParams("benchmark=agentic.terminalBench21")).data.length, 1);
+});
+
+test("business benchmark definitions join their categorized observations", () => {
+  const record = sourceRecord("benchlm", "openai/gpt-4o", "GPT-4o", "https://benchlm.example", "offer");
+  record.benchmarks = [
+    { benchmark_id: "agentic.gdpvalAa", value: 55, evidence: record.evidence![0] },
+    { benchmark_id: "agentic.gdpvalAaNormalized", value: 60, evidence: record.evidence![0] },
+    { benchmark_id: "multimodalGrounded.officeQaPro", value: 65, evidence: record.evidence![0] },
+    { benchmark_id: "knowledge.healthBenchProfessional", value: 70, evidence: record.evidence![0] },
+    { benchmark_id: "knowledge.healthBenchProfessionalRaw", value: 71, evidence: record.evidence![0] },
+    { benchmark_id: "agentic.spreadsheetBench2", value: 75, evidence: record.evidence![0] },
+    { benchmark_id: "agentic.aaAutomationBench", value: 80, evidence: record.evidence![0] },
+    { benchmark_id: "agentic.aaTau3Banking", value: 85, evidence: record.evidence![0] },
+  ];
+  const source = result("benchlm", [record]);
+  source.benchmark_definitions = [
+    benchmarkDefinition("gdpvalAa", "GDPval-AA"),
+    benchmarkDefinition("officeQaPro", "OfficeQA Pro"),
+    benchmarkDefinition("healthBenchProfessional", "HealthBench Professional"),
+    benchmarkDefinition("healthBenchProfessionalRaw", "HealthBench Professional (raw)"),
+    benchmarkDefinition("spreadsheetBench2", "SpreadsheetBench 2"),
+    benchmarkDefinition("aaAutomationBench", "AA AutomationBench"),
+    benchmarkDefinition("aaTau3Banking", "AA Tau3 Banking"),
+  ];
+
+  const snapshot = mergeSnapshots(undefined, [source], "2026-08-26T00:00:00.000Z");
+  assert.deepEqual(snapshot.benchmarks.map((value) => value.id), [
+    "agentic.automationBench",
+    "agentic.spreadsheetBench2",
+    "agentic.tau3Bench",
+    "knowledge.healthBenchProfessional",
+    "multimodalGrounded.officeQaPro",
+    "professional.gdpvalAa",
+  ]);
+  assert.deepEqual(snapshot.models[0].benchmarks.map((value) => [value.benchmark_id, value.metric]), [
+    ["agentic.automationBench", undefined],
+    ["agentic.spreadsheetBench2", undefined],
+    ["agentic.tau3Bench", undefined],
+    ["knowledge.healthBenchProfessional", undefined],
+    ["knowledge.healthBenchProfessional", "raw_score"],
+    ["multimodalGrounded.officeQaPro", undefined],
+    ["professional.gdpvalAa", undefined],
+    ["professional.gdpvalAa", "normalized_score"],
+  ]);
+  assert.equal(listBenchmarks(snapshot, new URLSearchParams("q=gdpvalAa"))[0]?.id, "professional.gdpvalAa");
+  assert.equal(snapshot.models[0].benchmarks.find((value) => value.benchmark_id === "agentic.tau3Bench")?.variant, "banking");
+  assert.equal(snapshot.models[0].benchmarks.find((value) => value.benchmark_id === "agentic.automationBench")?.evaluator, "artificial_analysis");
 });
 
 test("a refreshed raw benchmark replaces its old value while distinct source observations remain", () => {
@@ -370,6 +417,14 @@ test("schema describes the snapshot and shape guard validates hashless fixtures"
 
 function result(sourceId: string, records: SourceRecord[]): SourceResult {
   return { source_id: sourceId, url: `https://${sourceId}.example`, fetched_at: "2026-08-26T00:00:00.000Z", status: "ok", records };
+}
+
+function benchmarkDefinition(id: string, name: string): BenchmarkDefinition {
+  return {
+    id,
+    name,
+    evidence: { source_id: "benchlm", url: "https://benchlm.example", fetched_at: "2026-08-26T00:00:00.000Z", status: "observed" },
+  };
 }
 
 function sourceRecord(sourceId: string, rawId: string, name: string, url: string, offerId: string): SourceRecord {
