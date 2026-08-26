@@ -29,6 +29,25 @@ Use Vercel for `/health`, `/facets`, `/models`, `/offers`, `/benchmarks`, `/prov
 | “Best for coding/agents/math/etc.” | **Quality fit** | `/benchmarks`, summary candidates, then complete model records | Benchmark variants or sources require an offline comparison. |
 | “Compare everything / custom constraints” | **Deep fit** | Full snapshot plus schema | Never escalate further; report missing published evidence. |
 
+## Decision playbook
+
+Prioritize evidence in this order: a benchmark that reproduces the task, then a close task-family benchmark, then a broad index. Use broad aggregate scores only to break ties or fill gaps. After choosing models for quality, evaluate provider offers separately for latency, throughput, price, context, cache, policy, quantization, and supported parameters. Confirm current benchmark ids through `/benchmarks`; the examples below are families, not a fixed allowlist.
+
+| Workload | Quality evidence to prioritize | Operational evidence to prioritize |
+| --- | --- | --- |
+| Modify or debug a repository | SWE-Bench Verified/Pro/Rebench, TerminalBench; then coding index | Tools, context for the repository, output limit, latency across multi-step runs |
+| Generate algorithms or isolated code | LiveCodeBench, SciCode, Codeforces; then coding index | Output price, throughput, reasoning effort |
+| Autonomous agent or tool workflow | τ-bench, Toolathlon, BFCL, MCP/OSWorld/TerminalBench; then agentic index | Declared tools and exact parameters, route uptime/latency, context growth, cache economics |
+| Math or formal reasoning | AIME/HMMT for competition math, FrontierMath for harder problems, ARC-AGI for abstraction | Reasoning effort, output budget, thinking-token price when known |
+| Research, science, or factual QA | GPQA Diamond, HLE, MMLU-Pro; use BrowseComp/deep-search evaluations only when browsing is part of the task | Hallucination/accuracy observations, citations or tool support, context, freshness |
+| Structured extraction or classification | IFBench/IFEval for instruction following; published structured-output measurements when available | `structured_outputs` plus exact supported parameter, latency, retries, cost. A support flag alone does not measure schema adherence |
+| Long-context RAG or document analysis | LongBench, MRCR, needle/retrieval evaluations; task-domain QA second | Offer-level context, TTFT, cache read/write pricing, expected cache-hit ratio |
+| Vision, UI, charts, or OCR | MMMU-Pro for broad vision, ScreenSpot for UI grounding, CharXiv for charts, OCRBench for text extraction | Required input modalities, image pricing/limits, route latency |
+| Multilingual work | MMLU-ProX/Global-MMLU/NOVA63; SWE Multilingual for coding | Exact target language coverage, tokenizer cost, regional provider availability |
+| Creative or subjective writing | Direct writing/preference evaluations such as Lech-Mazur or relevant arena evidence; broad intelligence last | Style/context needs, output length and price. Treat preference scores as audience-dependent |
+
+Do not optimize a proxy past the task: GPQA is not an agent benchmark, IFEval is not schema reliability, LiveCodeBench is not repository maintenance, and advertised context is not retrieval quality. When no close benchmark exists, say so and lower confidence instead of synthesizing a universal score.
+
 ### Quick fit
 
 Discover valid values through `/facets`; do not guess capability or modality names. Query `/models?view=summary&limit=100` with hard filters. Repeated or comma-separated `capability` and `modality` values are all required; repeated providers, efforts, quantizations, and sources are alternatives. `provider` means an exact provider id. A page is not a ranking: if `meta.has_more`, tighten constraints or follow at most three pages before reporting truncation or escalating. Prefer `identity_confidence=exact`; ignore obvious router aliases whose ids begin with `-` or `~` unless they are relevant. Fetch complete records only for the surviving shortlist.
