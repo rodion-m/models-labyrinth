@@ -60,10 +60,13 @@ export function parseInteger(value: string | undefined, parameter: string): numb
 
 export function parseDate(value: string | undefined, parameter: string): string | undefined {
   if (value === undefined) return undefined;
-  if (!/^\d{4}-\d{2}-\d{2}(?:[Tt ].*)?$/.test(value) || !Number.isFinite(Date.parse(value))) {
+  const date = value.slice(0, 10);
+  const parsedDate = Date.parse(`${date}T00:00:00.000Z`);
+  const exactCalendarDate = Number.isFinite(parsedDate) && new Date(parsedDate).toISOString().slice(0, 10) === date;
+  if (!/^\d{4}-\d{2}-\d{2}(?:[Tt ].*)?$/.test(value) || !exactCalendarDate || !Number.isFinite(Date.parse(value))) {
     throw new QueryInputError(parameter, `${parameter} must be an ISO date`);
   }
-  return value.slice(0, 10);
+  return date;
 }
 
 export function parseEnum(value: string | undefined, parameter: string, allowed: readonly string[]): string | undefined {

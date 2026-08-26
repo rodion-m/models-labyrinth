@@ -1,6 +1,5 @@
 import { EVIDENCE_STALE_MS, MAX_LIMIT, WORKLOAD_PROFILES } from "./constants.js";
 import { estimateWorkloadCost } from "./cost.js";
-import { comparisonLaneId } from "./lane.js";
 import { queryIndex, type Facets, type IndexedModel, type IndexedOffer } from "./query-index.js";
 import {
   QueryInputError,
@@ -234,12 +233,7 @@ export function listBenchmarkObservations(snapshot: Snapshot, params: URLSearchP
   const sort = parseObservationSort(get("sort"));
   const index = queryIndex(snapshot);
   const currentIds = new Set(index.models.filter((row) => row.inCurrentScope).map((row) => row.model.id));
-  let rows = index.models.flatMap((row) => row.model.benchmarks.map((observation) => ({
-    ...observation,
-    model_id: row.model.id,
-    model_name: row.model.name,
-    lane_id: comparisonLaneId(observation),
-  }))).filter((row) => {
+  let rows = index.observations.filter((row) => {
     if (laneId && row.lane_id !== laneId) return false;
     if (models.length > 0 && !models.includes(row.model_id.toLowerCase())) return false;
     if (benchmarks.length > 0 && !benchmarks.some((value) => row.benchmark_id.toLowerCase() === value || (row.source_benchmark_ids ?? []).some((alias) => alias.toLowerCase() === value))) return false;

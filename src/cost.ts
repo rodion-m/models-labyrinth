@@ -63,7 +63,7 @@ export function estimateWorkloadCost(offer: Offer, profile: WorkloadProfile): Co
   add("cache_write", cacheWriteTokens, cacheWriteTokens > 0);
   add("output", profile.output_tokens, profile.output_tokens > 0);
   add("reasoning", reasoningTokens, reasoningTokens > 0);
-  add("request", 1, false);
+  add("request", 1, offer.pricing.some((point) => point.dimension === "request"));
 
   if (missing.size > 0) {
     return { estimated_cost_usd: null, missing_dimensions: [...missing].sort(), components, inputs };
@@ -78,8 +78,16 @@ export function estimateWorkloadCost(offer: Offer, profile: WorkloadProfile): Co
 }
 
 function rateFor(offer: Offer, dimension: string, contextTokens: number): ((units: number) => number) | "ambiguous" | undefined {
-  const points = offer.pricing.filter((value) => value.dimension === dimension && value.amount_usd_per_unit !== null);
-  const applicable = points.filter((point) => isApplicable(point, contextTokens));
+  const points = offer.pricing.filter((value) => value.dimension === dimension);
+  if (points.some((point) => point.kind === "scheduled" || (point.kind === "tiered" && point.tier?.type === "volume"))) {
+    return "ambiguous";
+  }
+  const contextTiers = points.filter((point) => point.kind === "tiered" && point.tier?.type === "context");
+  const matchingTiers = contextTiers.filter((point) => isApplicableContextTier(point, contextTokens));
+  const applicable = matchingTiers.length > 0
+    ? matchingTiers
+    : points.filter((point) => point.kind === "fixed" || point.kind === "variable");
+  if (applicable.some((point) => point.amount_usd_per_unit === null)) return undefined;
   const rates = applicable.flatMap((point) => {
     if (point.amount_usd_per_unit === null) return [];
     if (point.unit === "million_tokens") return [point.amount_usd_per_unit / 1_000_000];
@@ -92,9 +100,8 @@ function rateFor(offer: Offer, dimension: string, contextTokens: number): ((unit
   return (units: number) => units * first;
 }
 
-function isApplicable(point: PricePoint, contextTokens: number): boolean {
-  if (point.kind === "scheduled") return false;
-  if (point.kind !== "tiered" || !point.tier || point.tier.type !== "context") return point.kind === "fixed" || point.kind === "variable";
+function isApplicableContextTier(point: PricePoint, contextTokens: number): boolean {
+  if (point.kind !== "tiered" || !point.tier || point.tier.type !== "context") return false;
   const min = point.tier.min ?? 0;
   const max = point.tier.max;
   if (contextTokens < min) return false;

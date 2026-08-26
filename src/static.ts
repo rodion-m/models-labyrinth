@@ -70,4 +70,3 @@ async function writeModelFiles(snapshot: Snapshot, outputDirectory: string): Pro
   const workerCount = Math.min(32, Math.max(1, snapshot.models.length));
   await Promise.all(Array.from({ length: workerCount }, worker));
 }
-

@@ -126,7 +126,7 @@ All collection endpoints return an envelope with `data` and `meta`:
 
 `/models`, `/offers`, `/facets`, and `/benchmark-observations` default to `scope=current`: canonical models
 with at least one active offer, excluding unresolved identities and releases
-older than the documented 36-month recency window measured from
+older than the documented 24-month recency window measured from
 `generated_at`. An unknown release date is allowed only when an active offer
 has fresh evidence. `scope=all` returns the complete catalog. Responses include
 `meta.scope`, `meta.recency_cutoff`, and `meta.excluded_count`. `sort=updated`

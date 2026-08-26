@@ -39,7 +39,8 @@ function compactDateToIso(value: string): string | undefined {
   return iso;
 }
 
-function normalizeDateSpellings(value: string): string {
+function normalizeDateSpellings(value: string, sourceId: string): string {
+  if (sourceId !== "models_dev" || !/^openai\/(?:gpt|chatgpt|o\d)/.test(value)) return value;
   return value
     .replace(/\d{4}\.\d{2}\.\d{2}/g, (match) => compactDateToIso(match.replaceAll(".", "")) ?? match)
     .replace(/(^|[^0-9])(\d{8})(?=[^0-9]|$)/g, (match, prefix: string, digits: string) => {
@@ -48,7 +49,10 @@ function normalizeDateSpellings(value: string): string {
     });
 }
 
-function normalizeVersionPunctuation(value: string): string {
+function normalizeVersionPunctuation(value: string, sourceId: string): string {
+  const sourceUsesHyphenatedVersions = sourceId === "benchlm" || sourceId === "benchgecko";
+  const knownFamily = /^(?:google\/gemini-|z-ai\/glm-|meta\/muse-spark-)/.test(value);
+  if (!sourceUsesHyphenatedVersions || !knownFamily) return value;
   const dates: string[] = [];
   const protectedValue = value.replace(/\d{4}-\d{2}-\d{2}/g, (match) => {
     dates.push(match);
@@ -69,7 +73,8 @@ export function canonicalModelId(input: {
 }): { id: string; sourceModelId: string; variant?: string; confidence: "exact" | "alias" | "unresolved" } {
   const sourceModelId = stringValue(input.rawId) ?? stringValue(input.name) ?? "unknown";
   const split = splitRoutingVariant(sourceModelId);
-  const base = normalizeVersionPunctuation(normalizeDateSpellings(normalizePath(split.baseId)));
+  const normalizedPath = normalizePath(split.baseId);
+  const base = normalizeVersionPunctuation(normalizeDateSpellings(normalizedPath, input.sourceId), input.sourceId);
   if (base.includes("/")) {
     return { id: base, sourceModelId, variant: split.variant, confidence: "exact" };
   }

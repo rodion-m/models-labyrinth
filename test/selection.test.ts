@@ -27,6 +27,9 @@ test("strict query parsing rejects unknown enums, malformed values, and bad sort
   assert.throws(() => listModels(snapshot, new URLSearchParams("released_after=not-a-date")), (error: unknown) => {
     return error instanceof QueryInputError && error.parameter === "released_after";
   });
+  assert.throws(() => listModels(snapshot, new URLSearchParams("released_after=2026-02-31")), (error: unknown) => {
+    return error instanceof QueryInputError && error.parameter === "released_after";
+  });
   assert.throws(() => listModels(snapshot, new URLSearchParams("sort=popularity")), (error: unknown) => {
     return error instanceof QueryInputError && error.parameter === "sort";
   });
@@ -171,6 +174,8 @@ test("punctuation and batch aliases join without merging dated versions or famil
   assert.ok(ids.includes("meta/muse-spark-1.2"));
   assert.equal(ids.includes("meta/muse-spark-1-1"), false);
   assert.notEqual(canonicalModelId({ sourceId: "openrouter", rawId: "z-ai/glm-4.5" }).id, canonicalModelId({ sourceId: "openrouter", rawId: "zai-org/glm-4.5" }).id);
+  assert.equal(canonicalModelId({ sourceId: "models_dev", rawId: "databricks/databricks-gemini-2-5-pro" }).id, "databricks/databricks-gemini-2-5-pro");
+  assert.equal(canonicalModelId({ sourceId: "models_dev", rawId: "vendor/model-1-2" }).id, "vendor/model-1-2");
 });
 
 test("benchmark observations expose a stable lane_id and reject mixed-lane score sorts", () => {
@@ -260,6 +265,23 @@ test("workload cost is complete for cache write, tiers, and reasoning or reports
   assert.equal(low.missing_dimensions.length, 0);
   assert.equal(high.missing_dimensions.length, 0);
   assert.ok((high.estimated_cost_usd ?? 0) > (low.estimated_cost_usd ?? 0));
+
+  const fixedWithLongContextOverride = offerWithPricing([
+    { dimension: "input", unit: "million_tokens", amount_usd_per_unit: 1, raw: 1, kind: "fixed" },
+    { dimension: "input", unit: "million_tokens", amount_usd_per_unit: 2, raw: 2, kind: "tiered", tier: { type: "context", min: 200_000 } },
+    { dimension: "output", unit: "million_tokens", amount_usd_per_unit: 3, raw: 3, kind: "fixed" },
+  ]);
+  const longContext = estimateWorkloadCost(fixedWithLongContextOverride, { id: "custom", description: "t", input_tokens: 250_000, cached_input_ratio: 0, output_tokens: 10, requests_per_task: 1 });
+  assert.equal(longContext.missing_dimensions.length, 0);
+  assert.ok((longContext.components.input ?? 0) > 0.49);
+
+  const unresolvedRequest = offerWithPricing([
+    ...normalizeMillionPricing({ input: 1, output: 2 }),
+    { dimension: "request", unit: "request", amount_usd_per_unit: null, raw: -1, kind: "variable" },
+  ]);
+  const unresolved = estimateWorkloadCost(unresolvedRequest, { id: "custom", description: "t", input_tokens: 1_000, cached_input_ratio: 0, output_tokens: 10, requests_per_task: 1 });
+  assert.equal(unresolved.estimated_cost_usd, null);
+  assert.ok(unresolved.missing_dimensions.includes("request"));
 });
 
 test("runtime query artifact is compact and the API cache lasts for the instance lifetime", async () => {

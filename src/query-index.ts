@@ -1,5 +1,6 @@
 import type { Model, Offer, Snapshot } from "./types.js";
-import type { FlatOffer } from "./query.js";
+import { comparisonLaneId } from "./lane.js";
+import type { FlatBenchmarkObservation, FlatOffer } from "./query.js";
 import { inCurrentScope, offerInCurrentScope } from "./scope.js";
 
 export interface IndexedModel {
@@ -39,6 +40,7 @@ export interface IndexedOffer {
 export interface QueryIndex {
   models: IndexedModel[];
   offers: IndexedOffer[];
+  observations: FlatBenchmarkObservation[];
   byId: Map<string, Model>;
   byAlias: Map<string, Model | undefined>;
   providers: Array<Record<string, unknown>>;
@@ -63,6 +65,12 @@ export function queryIndex(snapshot: Snapshot): QueryIndex {
 
   const models = snapshot.models.map((model) => indexModel(model, snapshot.generated_at));
   const offers = models.flatMap((row) => row.indexedOffers);
+  const observations = models.flatMap((row) => row.model.benchmarks.map((observation) => ({
+    ...observation,
+    model_id: row.model.id,
+    model_name: row.model.name,
+    lane_id: comparisonLaneId(observation),
+  })));
   const byId = new Map(models.map((row) => [row.model.id, row.model]));
   const byAlias = new Map<string, Model | undefined>();
   for (const row of models) for (const alias of row.model.aliases) {
@@ -72,6 +80,7 @@ export function queryIndex(snapshot: Snapshot): QueryIndex {
   const result: QueryIndex = {
     models,
     offers,
+    observations,
     byId,
     byAlias,
     providers: buildProviders(models),
