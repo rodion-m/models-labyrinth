@@ -11,7 +11,10 @@ export async function collectSources(
 ): Promise<SourceResult[]> {
   return Promise.all(adapters.map(async (adapter) => {
     try {
-      return await adapter.collect({ previous, fetchImpl });
+      const result = await adapter.collect({ previous, fetchImpl });
+      return result.status === "ok" && result.replace_previous === undefined
+        ? { ...result, replace_previous: true }
+        : result;
     } catch (error) {
       return {
         source_id: adapter.source_id,

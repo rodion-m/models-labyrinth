@@ -8,7 +8,7 @@ import { canonicalModelId, splitOpenRouterVariant } from "../src/identity.js";
 import { normalizeMillionPricing, normalizeOpenRouterPricing, normalizePortkeyPricing } from "../src/price.js";
 import { mergeSnapshots } from "../src/merge.js";
 import { listBenchmarks, listFacets, listModels, listOffers } from "../src/query.js";
-import { refreshDatabase } from "../src/refresh.js";
+import { collectSources, refreshDatabase } from "../src/refresh.js";
 import { writeSnapshotAtomic } from "../src/storage.js";
 import { MODELS_DB_SCHEMA, assertSnapshotShape } from "../src/schema.js";
 import { collectOpenRouter } from "../src/sources/openrouter.js";
@@ -408,6 +408,22 @@ test("source replacement removes stale Vals-only models and canonical definition
   assert.equal(snapshot.models.some((model) => model.id === "grok/grok-4.6"), false);
   assert.equal(snapshot.benchmarks[0].name, "SWE-bench Verified");
   assert.equal(snapshot.benchmarks[0].url, "https://benchlm.example/swe");
+});
+
+test("successful complete source collections replace their previous projection by default", async () => {
+  const collected = await collectSources(undefined, [{
+    source_id: "fixture",
+    url: "https://fixture.example",
+    collect: async () => result("fixture", []),
+  }]);
+  assert.equal(collected[0].replace_previous, true);
+
+  const explicitlyIncremental = await collectSources(undefined, [{
+    source_id: "fixture",
+    url: "https://fixture.example",
+    collect: async () => ({ ...result("fixture", []), replace_previous: false }),
+  }]);
+  assert.equal(explicitlyIncremental[0].replace_previous, false);
 });
 
 test("schema describes the snapshot and shape guard validates hashless fixtures", () => {

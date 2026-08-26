@@ -128,6 +128,7 @@ test("provider plus capability or context constraints cannot match across two di
 
 test("punctuation and batch aliases join without merging dated versions or families", () => {
   assert.equal(canonicalModelId({ sourceId: "benchlm", rawId: "google/gemini-2-5-pro", publisher: "google" }).id, "google/gemini-2.5-pro");
+  assert.equal(canonicalModelId({ sourceId: "benchlm", rawId: "gemini-2-5-pro", publisher: "Google" }).id, "google/gemini-2.5-pro");
   assert.equal(canonicalModelId({ sourceId: "openrouter", rawId: "google/gemini-2.5-pro", publisher: "google" }).id, "google/gemini-2.5-pro");
   assert.deepEqual(splitRoutingVariant("openai/gpt-4o:batch"), { baseId: "openai/gpt-4o", variant: "batch" });
   assert.equal(canonicalModelId({ sourceId: "openrouter", rawId: "openai/gpt-4o:batch", publisher: "openai" }).id, "openai/gpt-4o");
@@ -176,6 +177,21 @@ test("punctuation and batch aliases join without merging dated versions or famil
   assert.notEqual(canonicalModelId({ sourceId: "openrouter", rawId: "z-ai/glm-4.5" }).id, canonicalModelId({ sourceId: "openrouter", rawId: "zai-org/glm-4.5" }).id);
   assert.equal(canonicalModelId({ sourceId: "models_dev", rawId: "databricks/databricks-gemini-2-5-pro" }).id, "databricks/databricks-gemini-2-5-pro");
   assert.equal(canonicalModelId({ sourceId: "models_dev", rawId: "vendor/model-1-2" }).id, "vendor/model-1-2");
+});
+
+test("source replacement migrates a stale split identity into its canonical model", () => {
+  const stale = sourceRecord("benchlm", "google/gemini-2-5-pro", "Gemini 2.5 Pro", "stale");
+  stale.id = "google/gemini-2-5-pro";
+  stale.aliases = [{ id: stale.id, source_id: "benchlm" }];
+  stale.offers = [];
+  const previous = mergeSnapshots(undefined, [result("benchlm", [stale])], "2026-08-25T00:00:00.000Z");
+
+  const current = sourceRecord("benchlm", "google/gemini-2-5-pro", "Gemini 2.5 Pro", "current");
+  current.offers = [];
+  const refreshed = mergeSnapshots(previous, [{ ...result("benchlm", [current]), replace_previous: true }], "2026-08-26T00:00:00.000Z");
+
+  assert.equal(refreshed.models.some((model) => model.id === "google/gemini-2-5-pro"), false);
+  assert.equal(refreshed.models.filter((model) => model.id === "google/gemini-2.5-pro").length, 1);
 });
 
 test("benchmark observations expose a stable lane_id and reject mixed-lane score sorts", () => {

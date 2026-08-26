@@ -49,9 +49,12 @@ function normalizeDateSpellings(value: string, sourceId: string): string {
     });
 }
 
-function normalizeVersionPunctuation(value: string, sourceId: string): string {
+function normalizeVersionPunctuation(value: string, sourceId: string, publisher: string): string {
   const sourceUsesHyphenatedVersions = sourceId === "benchlm" || sourceId === "benchgecko";
-  const knownFamily = /^(?:google\/gemini-|z-ai\/glm-|meta\/muse-spark-)/.test(value);
+  const knownFamily = /^(?:google\/gemini-|z-ai\/glm-|meta\/muse-spark-)/.test(value)
+    || (publisher === "google" && value.startsWith("gemini-"))
+    || (publisher === "z-ai" && value.startsWith("glm-"))
+    || (publisher === "meta" && value.startsWith("muse-spark-"));
   if (!sourceUsesHyphenatedVersions || !knownFamily) return value;
   const dates: string[] = [];
   const protectedValue = value.replace(/\d{4}-\d{2}-\d{2}/g, (match) => {
@@ -74,11 +77,11 @@ export function canonicalModelId(input: {
   const sourceModelId = stringValue(input.rawId) ?? stringValue(input.name) ?? "unknown";
   const split = splitRoutingVariant(sourceModelId);
   const normalizedPath = normalizePath(split.baseId);
-  const base = normalizeVersionPunctuation(normalizeDateSpellings(normalizedPath, input.sourceId), input.sourceId);
+  const publisher = normalizePath(slugify(input.publisher));
+  const base = normalizeVersionPunctuation(normalizeDateSpellings(normalizedPath, input.sourceId), input.sourceId, publisher);
   if (base.includes("/")) {
     return { id: base, sourceModelId, variant: split.variant, confidence: "exact" };
   }
-  const publisher = normalizePath(slugify(input.publisher));
   if (publisher !== "unknown" && base !== "unknown") {
     return { id: `${publisher}/${base}`, sourceModelId, variant: split.variant, confidence: "alias" };
   }
