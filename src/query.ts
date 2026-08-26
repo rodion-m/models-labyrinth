@@ -80,6 +80,9 @@ export function listModels(snapshot: Snapshot, params: URLSearchParams | Record<
   const hasCachePricing = parseBoolean(get("has_cache_pricing"), "has_cache_pricing");
   const releasedAfter = parseDate(get("released_after"), "released_after");
   const releasedBefore = parseDate(get("released_before"), "released_before");
+  if (releasedAfter && releasedBefore && releasedAfter > releasedBefore) {
+    throw new QueryInputError("released_after", "released_after must be on or before released_before");
+  }
   const sort = parseModelSort(get("sort"));
   const offerScoped = {
     providers,
@@ -139,7 +142,6 @@ export function listOffers(snapshot: Snapshot, params: URLSearchParams | Record<
   if (maxCost !== undefined && !profile) throw new QueryInputError("max_cost_usd", "max_cost_usd requires profile");
   if (sort === "cost" && !profile) throw new QueryInputError("sort", "sort=cost requires profile");
   let indexedOffers = queryIndex(snapshot).offers.filter((row) => {
-    if (scope === "current" && !row.inCurrentScope) return false;
     if (providers.length > 0 && !providers.includes(row.providerId)) return false;
     if (modelIds.length > 0 && !modelIds.includes(row.flat.model_id.toLowerCase())) return false;
     if (!modalities.every((modality) => row.modelModalities.has(modality))) return false;
@@ -154,6 +156,9 @@ export function listOffers(snapshot: Snapshot, params: URLSearchParams | Record<
     if (hasCachePricing !== undefined && row.hasCachePricing !== hasCachePricing) return false;
     return true;
   });
+  const beforeScope = indexedOffers.length;
+  if (scope === "current") indexedOffers = indexedOffers.filter((row) => row.inCurrentScope);
+  const excludedCount = scope === "current" ? beforeScope - indexedOffers.length : 0;
   const costs = new Map<string, ReturnType<typeof estimateWorkloadCost>>();
   if (profile) {
     for (const row of indexedOffers) costs.set(row.offer.id, estimateWorkloadCost(row.offer, profile));
@@ -188,7 +193,7 @@ export function listOffers(snapshot: Snapshot, params: URLSearchParams | Record<
   return paginate(offers, get("limit"), get("offset"), snapshot, MAX_LIMIT, {
     scope,
     recency_cutoff: recencyCutoffDate(snapshot.generated_at),
-    excluded_count: 0,
+    excluded_count: excludedCount,
   });
 }
 
@@ -228,16 +233,13 @@ export function listBenchmarkObservations(snapshot: Snapshot, params: URLSearchP
   const laneId = get("lane_id");
   const sort = parseObservationSort(get("sort"));
   const index = queryIndex(snapshot);
-  const inScope = new Set(index.models.filter((row) => scope === "all" || row.inCurrentScope).map((row) => row.model.id));
-  let rows = index.models.flatMap((row) => {
-    if (!inScope.has(row.model.id)) return [];
-    return row.model.benchmarks.map((observation) => ({
-      ...observation,
-      model_id: row.model.id,
-      model_name: row.model.name,
-      lane_id: comparisonLaneId(observation),
-    }));
-  }).filter((row) => {
+  const currentIds = new Set(index.models.filter((row) => row.inCurrentScope).map((row) => row.model.id));
+  let rows = index.models.flatMap((row) => row.model.benchmarks.map((observation) => ({
+    ...observation,
+    model_id: row.model.id,
+    model_name: row.model.name,
+    lane_id: comparisonLaneId(observation),
+  }))).filter((row) => {
     if (laneId && row.lane_id !== laneId) return false;
     if (models.length > 0 && !models.includes(row.model_id.toLowerCase())) return false;
     if (benchmarks.length > 0 && !benchmarks.some((value) => row.benchmark_id.toLowerCase() === value || (row.source_benchmark_ids ?? []).some((alias) => alias.toLowerCase() === value))) return false;
@@ -250,9 +252,11 @@ export function listBenchmarkObservations(snapshot: Snapshot, params: URLSearchP
     if (sources.length > 0 && !sources.includes(row.evidence.source_id.toLowerCase())) return false;
     return true;
   });
+  const beforeScope = rows.length;
+  if (scope === "current") rows = rows.filter((row) => currentIds.has(row.model_id));
   const lanes = new Set(rows.map((row) => row.lane_id));
-  if (sort === "score" && lanes.size !== 1) {
-    throw new QueryInputError("sort", "sort=score requires a single comparison lane; pass lane_id or filters that isolate one lane");
+  if (sort === "score" && lanes.size > 1) {
+    throw new QueryInputError("sort", "sort=score requires a single comparison lane; pass lane_id or filters that isolate one comparison lane");
   }
   rows = stableSort(rows, (a, b) => {
     if (sort === "score") return b.value - a.value || a.model_id.localeCompare(b.model_id);
@@ -261,7 +265,7 @@ export function listBenchmarkObservations(snapshot: Snapshot, params: URLSearchP
   return paginate(rows, get("limit"), get("offset"), snapshot, MAX_LIMIT, {
     scope,
     recency_cutoff: recencyCutoffDate(snapshot.generated_at),
-    excluded_count: 0,
+    excluded_count: scope === "current" ? beforeScope - rows.length : 0,
   });
 }
 
@@ -270,7 +274,7 @@ export function listProfiles(): WorkloadProfile[] {
 }
 
 export interface FacetResponse extends Facets {
-  meta: { scope: QueryScope; recency_cutoff: string; excluded_count: number };
+  meta: { scope: QueryScope; recency_cutoff: string; excluded_count: number; updated_at: string; schema_version: string };
 }
 
 export function listFacets(snapshot: Snapshot, params: URLSearchParams | Record<string, string | undefined> = {}): FacetResponse {
@@ -284,18 +288,23 @@ export function listFacets(snapshot: Snapshot, params: URLSearchParams | Record<
       scope,
       recency_cutoff: recencyCutoffDate(snapshot.generated_at),
       excluded_count: excludedCount,
+      updated_at: snapshot.generated_at,
+      schema_version: snapshot.schema_version,
     },
   };
 }
 
 export function health(snapshot: Snapshot): Record<string, unknown> {
   const now = Date.now();
+  const currentModelCount = queryIndex(snapshot).models.filter((row) => row.inCurrentScope).length;
   return {
     status: snapshot.models.length > 0 ? "ok" : "empty",
     schema_version: snapshot.schema_version,
     generated_at: snapshot.generated_at,
     content_hash: snapshot.content_hash,
     model_count: snapshot.models.length,
+    current_model_count: currentModelCount,
+    all_model_count: snapshot.models.length,
     source_count: snapshot.sources.length,
     default_scope: "current",
     recency_cutoff: recencyCutoffDate(snapshot.generated_at),

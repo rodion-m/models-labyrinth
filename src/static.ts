@@ -20,7 +20,9 @@ export async function buildStatic(snapshot: Snapshot, outputRoot = resolve(proce
   await writeJson(join(apiRoot, "providers.json"), { data: listProviders(snapshot) });
   await writeJson(join(apiRoot, "benchmarks.json"), { data: listBenchmarks(snapshot) });
   await writeJson(join(apiRoot, "profiles.json"), { data: listProfiles() });
-  await writeJson(join(apiRoot, "facets.json"), { data: listFacets(snapshot) });
+  const facets = listFacets(snapshot);
+  const { meta: facetMeta, ...facetData } = facets;
+  await writeJson(join(apiRoot, "facets.json"), { data: facetData, meta: facetMeta });
   await writeJson(join(apiRoot, "offers.json"), listOffers(snapshot, new URLSearchParams("limit=100")));
   await writeJson(join(apiRoot, "benchmark-observations.json"), listBenchmarkObservations(snapshot, new URLSearchParams("limit=100")));
   const allIndex = snapshot.models.map((model) => ({ id: model.id, name: model.name, file: `models/${fileKey(model.id)}.json` }));

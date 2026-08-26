@@ -412,6 +412,8 @@ test("source replacement removes stale Vals-only models and canonical definition
 
 test("schema describes the snapshot and shape guard validates hashless fixtures", () => {
   assert.equal(MODELS_DB_SCHEMA.$schema, "https://json-schema.org/draft/2020-12/schema");
+  assert.deepEqual(MODELS_DB_SCHEMA.$defs.api_meta.properties.scope.enum, ["current", "all"]);
+  assert.ok(MODELS_DB_SCHEMA.$defs.comparison_lane.properties.lane_id);
   assertSnapshotShape({ schema_version: "1.0", generated_at: "2026-08-26T00:00:00.000Z", content_hash: "", workload_profiles: [], sources: [], benchmarks: [], models: [] } satisfies Snapshot);
 });
 

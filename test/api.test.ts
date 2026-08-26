@@ -87,7 +87,16 @@ test("models and facets default to current scope metadata", () => {
   assert.ok((models.body as any).meta.recency_cutoff);
   const facets = fakeResponse();
   facetsHandler({ url: "/api/v1/facets" }, facets);
-  assert.equal((facets.body as any).data.meta.scope, "current");
+  assert.equal((facets.body as any).meta.scope, "current");
+  assert.ok(Array.isArray((facets.body as any).data.capabilities));
+});
+
+test("benchmark observations default to current scope and identify mixed comparison lanes", () => {
+  const listed = fakeResponse();
+  observationsHandler({ url: "/api/v1/benchmark-observations?limit=1" }, listed);
+  assert.equal(listed.statusCode, 200);
+  assert.equal((listed.body as any).meta.scope, "current");
+  assert.ok((listed.body as any).data[0].lane_id);
 });
 
 test("schema handler exposes the same JSON Schema contract", () => {
@@ -96,6 +105,8 @@ test("schema handler exposes the same JSON Schema contract", () => {
   assert.equal(response.statusCode, 200);
   assert.equal((response.body as any).$schema, "https://json-schema.org/draft/2020-12/schema");
   assert.ok((response.body as any).$defs.model);
+  assert.deepEqual((response.body as any).$defs.api_meta.properties.scope.enum, ["current", "all"]);
+  assert.equal((response.body as any).$defs.comparison_lane.required.includes("lane_id"), true);
 });
 
 test("snapshot endpoint redirects to the static full JSON", () => {

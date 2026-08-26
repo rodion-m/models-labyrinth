@@ -101,7 +101,10 @@ All collection endpoints return an envelope with `data` and `meta`:
     "offset": 0,
     "has_more": false,
     "updated_at": "...",
-    "schema_version": "1.0"
+    "schema_version": "1.0",
+    "scope": "current",
+    "recency_cutoff": "...",
+    "excluded_count": 0
   }
 }
 ```
@@ -115,13 +118,13 @@ All collection endpoints return an envelope with `data` and `meta`:
 - `GET /api/v1/facets` — discover current capability, effort, quantization, modality, and source values.
 - `GET /api/v1/providers`
 - `GET /api/v1/benchmarks?kind=benchmark&q=terminal` — canonical benchmark catalog; `kind` accepts `benchmark`, `index`, `aggregate`, or `claim`, while `q` also matches upstream aliases.
-- `GET /api/v1/benchmark-observations?benchmark=coding.terminalBench21&effort=high` — paginated observations with a stable `lane_id`. `sort=score` is allowed only inside one comparison lane.
+- `GET /api/v1/benchmark-observations?benchmark=coding.terminalBench21&effort=high` — canonical paginated observations with a stable `lane_id`. Defaults to `scope=current`. `sort=score` is allowed only inside one comparison lane.
 - `GET /api/v1/profiles`
 - `GET /api/v1/health`
 - `GET /api/v1/schema` — JSON Schema for the complete `models_db.json`.
 - `GET /api/v1/snapshot` — redirect to the full static `snapshot.json`.
 
-`/models`, `/offers`, and `/facets` default to `scope=current`: canonical models
+`/models`, `/offers`, `/facets`, and `/benchmark-observations` default to `scope=current`: canonical models
 with at least one active offer, excluding unresolved identities and releases
 older than the documented 36-month recency window measured from
 `generated_at`. An unknown release date is allowed only when an active offer
@@ -156,10 +159,10 @@ required dimension or tier cannot be resolved, the total is `null` and
 `missing_dimensions` names exactly what is missing. The estimate is not
 measured cost or a latency prediction.
 
-Benchmark observations keep comparison conditions attached. A `lane_id` is the
-canonical benchmark plus metric, unit, variant, effort, evaluator, dataset
-version, and configuration. Sorting by score is a client error unless the
-result set is a single lane.
+Benchmark observations keep comparison conditions attached. A comparison lane
+is the canonical benchmark plus metric, unit, variant, effort, evaluator,
+dataset version, and configuration; the API exposes it as `lane_id`. Sorting
+by score is a client error unless the result set is a single comparison lane.
 
 Vercel Functions have a 4.5 MB response-body limit, so collection pages are
 limited to 100 items. For complete offline analysis, use the static

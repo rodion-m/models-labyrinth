@@ -7,7 +7,7 @@ import { clearSnapshotCache, loadSnapshot } from "../src/db.js";
 import { canonicalModelId, splitRoutingVariant } from "../src/identity.js";
 import { mergeSnapshots } from "../src/merge.js";
 import { estimateWorkloadCost } from "../src/cost.js";
-import { listFacets, listModels, listOffers, listBenchmarkObservations, QueryInputError } from "../src/query.js";
+import { health, listFacets, listModels, listOffers, listBenchmarkObservations, QueryInputError } from "../src/query.js";
 import { comparisonLaneId } from "../src/lane.js";
 import { buildRuntimeQueryArtifact } from "../src/runtime-artifact.js";
 import { normalizeMillionPricing } from "../src/price.js";
@@ -32,6 +32,9 @@ test("strict query parsing rejects unknown enums, malformed values, and bad sort
   });
   assert.throws(() => listOffers(snapshot, new URLSearchParams("has_runtime=maybe")), (error: unknown) => {
     return error instanceof QueryInputError && error.parameter === "has_runtime";
+  });
+  assert.throws(() => listModels(snapshot, new URLSearchParams("released_after=2026-08-01&released_before=2026-01-01")), (error: unknown) => {
+    return error instanceof QueryInputError && error.parameter === "released_after";
   });
 });
 
@@ -66,21 +69,38 @@ test("default scope is current with transparent metadata and scope=all keeps the
   assert.ok(all.data.some((row) => row.id.startsWith("unresolved/") || row.id === "unresolved/epoch/mystery"));
 
   const facets = listFacets(snapshot);
-  assert.equal(facets.meta?.scope ?? "current", "current");
+  assert.equal(facets.meta.scope, "current");
   const allFacets = listFacets(snapshot, new URLSearchParams("scope=all"));
+  assert.equal(allFacets.meta.scope, "all");
   assert.ok((allFacets.capabilities.find((row) => row.value === "tools")?.model_count ?? 0) >= (facets.capabilities.find((row) => row.value === "tools")?.model_count ?? 0));
+
+  const offers = listOffers(snapshot, new URLSearchParams());
+  assert.equal(offers.meta.scope, "current");
+  assert.ok((offers.meta.excluded_count ?? 0) >= 1);
+  assert.equal(listOffers(snapshot, new URLSearchParams("scope=all")).meta.excluded_count, 0);
+
+  const status = health(snapshot);
+  assert.equal(status.default_scope, "current");
+  assert.equal(status.current_model_count, 1);
+  assert.equal(status.all_model_count, snapshot.models.length);
+  assert.equal(status.content_hash, snapshot.content_hash);
 });
 
 test("sort=released orders by release date and released_after/before are explicit filters", () => {
   const older = sourceRecord("models_dev", "openai/gpt-4o", "GPT-4o", "a");
   older.release_date = "2025-01-01";
+  older.evidence![0].fetched_at = "2026-08-20T00:00:00.000Z";
+  older.offers![0].evidence[0].fetched_at = "2026-08-20T00:00:00.000Z";
   const newer = sourceRecord("models_dev", "openai/gpt-5", "GPT-5", "b");
   newer.release_date = "2026-08-01";
+  newer.evidence![0].fetched_at = "2026-08-26T00:00:00.000Z";
+  newer.offers![0].evidence[0].fetched_at = "2026-08-26T00:00:00.000Z";
   const snapshot = mergeSnapshots(undefined, [result("models_dev", [older, newer])], "2026-08-26T00:00:00.000Z");
   const sorted = listModels(snapshot, new URLSearchParams("sort=released&view=summary"));
   assert.deepEqual(sorted.data.map((row) => row.id), ["openai/gpt-5", "openai/gpt-4o"]);
   assert.equal(listModels(snapshot, new URLSearchParams("released_after=2026-01-01&view=summary")).data[0]?.id, "openai/gpt-5");
   assert.equal(listModels(snapshot, new URLSearchParams("released_before=2026-01-01&view=summary")).data[0]?.id, "openai/gpt-4o");
+  assert.deepEqual(listModels(snapshot, new URLSearchParams("sort=updated&view=summary")).data.map((row) => row.id), ["openai/gpt-5", "openai/gpt-4o"]);
 });
 
 test("provider plus capability or context constraints cannot match across two different offers", () => {
@@ -154,19 +174,41 @@ test("punctuation and batch aliases join without merging dated versions or famil
 });
 
 test("benchmark observations expose a stable lane_id and reject mixed-lane score sorts", () => {
-  const record = sourceRecord("vals", "openai/gpt-4o", "GPT-4o", "offer");
-  record.benchmarks = [
-    observation(record, { benchmark_id: "coding.terminalBench21", value: 40, metric: "score", unit: "percent", effort: "low" }),
-    observation(record, { benchmark_id: "coding.terminalBench21", value: 70, metric: "score", unit: "percent", effort: "high" }),
-    observation(record, { benchmark_id: "knowledge.mmluPro", value: 80, metric: "score", unit: "percent", effort: "high" }),
+  const current = sourceRecord("vals", "openai/gpt-4o", "GPT-4o", "offer");
+  current.release_date = "2026-01-01";
+  current.benchmarks = [
+    observation(current, { benchmark_id: "coding.terminalBench21", value: 40, metric: "score", unit: "percent", effort: "low", evaluator: "vals", dataset_version: "2.1" }),
+    observation(current, { benchmark_id: "coding.terminalBench21", value: 70, metric: "score", unit: "percent", effort: "high", evaluator: "vals", dataset_version: "2.1" }),
+    observation(current, { benchmark_id: "knowledge.mmluPro", value: 80, metric: "score", unit: "percent", effort: "high" }),
   ];
-  const snapshot = mergeSnapshots(undefined, [result("vals", [record])], "2026-08-26T00:00:00.000Z");
+  const historical = sourceRecord("vals", "openai/gpt-3", "GPT-3", "old-offer");
+  historical.release_date = "2020-06-01";
+  historical.benchmarks = [
+    observation(historical, { benchmark_id: "coding.terminalBench21", value: 10, metric: "score", unit: "percent", effort: "high", evaluator: "vals", dataset_version: "2.1" }),
+  ];
+  const snapshot = mergeSnapshots(undefined, [result("vals", [current, historical])], "2026-08-26T00:00:00.000Z");
   const listed = listBenchmarkObservations(snapshot, new URLSearchParams("benchmark=coding.terminalBench21&effort=high"));
+  assert.equal(listed.meta.scope, "current");
   assert.equal(listed.data.length, 1);
   assert.ok(listed.data[0].lane_id);
   assert.equal(listed.data[0].lane_id, comparisonLaneId(listed.data[0]));
+  assert.equal(listed.data[0].evidence.source_id, "vals");
+  assert.ok((listed.meta.excluded_count ?? 0) >= 1);
+
+  const isolated = listBenchmarkObservations(snapshot, new URLSearchParams("benchmark=coding.terminalBench21&effort=high&metric=score&unit=percent&evaluator=vals&dataset_version=2.1&sort=score"));
+  assert.equal(isolated.data.length, 1);
+  assert.equal(isolated.data[0].value, 70);
+
   const sorted = listBenchmarkObservations(snapshot, new URLSearchParams(`lane_id=${listed.data[0].lane_id}&sort=score`));
   assert.equal(sorted.data.length, 1);
+  assert.equal(sorted.data[0].lane_id, listed.data[0].lane_id);
+  assert.equal(sorted.data[0].evidence.source_id, "vals");
+
+  const all = listBenchmarkObservations(snapshot, new URLSearchParams("scope=all&benchmark=coding.terminalBench21&effort=high&sort=score"));
+  assert.equal(all.meta.scope, "all");
+  assert.equal(all.meta.excluded_count, 0);
+  assert.deepEqual(all.data.map((row) => row.value), [70, 10]);
+
   assert.throws(() => listBenchmarkObservations(snapshot, new URLSearchParams("sort=score")), (error: unknown) => {
     return error instanceof QueryInputError && error.parameter === "sort";
   });
