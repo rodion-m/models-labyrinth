@@ -144,6 +144,8 @@ cannot change files in an immutable deployment by itself.
 
 The static projection contains:
 
+- `index.html` — the lightweight landing page;
+- `labyrinth-hero.jpg` — the landing-page hero asset;
 - `api/v1/snapshot.json` — complete snapshot;
 - `api/v1/schema.json` — schema;
 - `api/v1/models.json` and `api/v1/models/index.json` — compact model index;
