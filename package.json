@@ -1,0 +1,21 @@
+{
+  "name": "llm-models-db",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "test": "tsx --test test/*.test.ts",
+    "test:live": "LIVE_TESTS=1 node --env-file-if-exists=.env node_modules/tsx/dist/cli.mjs --test test/*.test.ts",
+    "update:db": "node --env-file-if-exists=.env node_modules/tsx/dist/cli.mjs scripts/update-db.ts",
+    "build:static": "tsx scripts/build-static.ts",
+    "typecheck": "tsc --noEmit",
+    "check": "npm run typecheck && npm test && npm run build:static"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.3",
+    "typescript": "^5.7.3"
+  }
+}
