@@ -25,7 +25,7 @@ Use Vercel for filtered endpoints and GitHub Pages for complete downloads. Begin
 5. Use `/benchmark-observations?scope=current` for quality. Compare values only inside one `lane_id`; never average lanes or transfer a score across model versions.
 6. Compare surviving `offer × reasoning configuration` pairs on full workload cost and route-scoped operational evidence. Provider choice and effort are decision dimensions, not follow-up details.
 7. Return a Pareto decision. If no candidate dominates and ranking weights are necessary, expose them and check whether reasonable reweighting changes the winner.
-8. Run the completion gate below before answering. For a consequential ranked decision, validate a small JSON decision artifact before rendering prose.
+8. Run the completion gate below before answering. For a consequential ranked decision, validate a small JSON decision artifact with `scripts/validate-decision.mjs` before rendering prose.
 
 ## Route map
 
@@ -61,9 +61,25 @@ For full-snapshot work, use `download-snapshot.mjs` or `select-models.mjs`; do n
 
 ## Completion gate
 
-A recommendation is incomplete until model, exact offer, reasoning configuration, output contract, operations, economics, and benchmark transfer are each stated. `Unknown`, `unsupported`, or `not applicable` is acceptable when explained; omission is not. Lead with `model × provider route × effort`.
+A recommendation is incomplete until every row below is stated. `Unknown`, `unsupported`, or `not applicable` is acceptable when explained; omission is not.
 
-Before a ranked or provider-sensitive answer, read [decision-completion.md](references/decision-completion.md). Use its JSON validator for multiple candidates or consequential deployment decisions.
+| Dimension | Required result |
+| --- | --- |
+| Model | Canonical model/version; no score borrowed from a neighboring version. |
+| Offer | Exact provider, provider model id, route or routing mode, service tier, and quantization, or an explicit unresolved reason. |
+| Reasoning | Selected effort/configuration, or explicit unsupported/unknown status. |
+| Output contract | Route-level structured-output support and whether it is declared or measured. |
+| Operations | Cache semantics, privacy/data policy, runtime evidence, fallback behavior, and unknowns. |
+| Economics | Workload cost and assumptions, including reasoning and cache dimensions. |
+| Quality transfer | Benchmark lane and whether its model/configuration/quantization match the selected offer. |
+
+Lead with the deployable triple `model × provider route × effort`. For a ranked decision with multiple candidates, write a temporary JSON artifact and run:
+
+```bash
+node scripts/validate-decision.mjs /path/to/decision.json
+```
+
+The validator checks completeness, not whether the recommendation is correct. Delete the temporary artifact after use.
 
 ## Response contract
 

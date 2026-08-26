@@ -5,6 +5,7 @@ import { join } from "node:path";
 import test from "node:test";
 
 import { download } from "../.agents/skills/model-that-fits-my-task/scripts/download-snapshot.mjs";
+import { validateDecision } from "../.agents/skills/model-that-fits-my-task/scripts/validate-decision.mjs";
 import {
   comparisonLane,
   parseSelectionArgs,
@@ -128,6 +129,23 @@ test("bundle downloader reuses a matching content-hash cache without downloading
   }
 });
 
+test("decision validation rejects omitted provider and effort but accepts explicit unknowns", () => {
+  const recommendation = completeRecommendation();
+  assert.deepEqual(validateDecision({ recommendations: [recommendation] }), []);
+
+  const missing = structuredClone(recommendation);
+  delete missing.offer;
+  delete missing.reasoning;
+  const errors = validateDecision({ recommendations: [missing] });
+  assert.ok(errors.some((error) => error.includes("offer.status")));
+  assert.ok(errors.some((error) => error.includes("reasoning.status")));
+
+  const unknown = completeRecommendation();
+  unknown.reasoning = { status: "unknown", reason: "The provider does not publish named effort support." };
+  unknown.runtime = { status: "unknown", evidence: "The endpoint stats response was empty." };
+  assert.deepEqual(validateDecision({ recommendations: [unknown] }), []);
+});
+
 function selection(overrides = {}) {
   return {
     scope: "current",
@@ -168,5 +186,28 @@ function offer(provider, capabilities, context, evidence) {
     pricing: [],
     runtime: [],
     evidence: [evidence],
+  };
+}
+
+function completeRecommendation() {
+  return {
+    model_id: "vendor/model",
+    offer: {
+      status: "selected",
+      provider_id: "provider",
+      provider_model_id: "vendor/model",
+      route: "provider/default",
+      service_tier: null,
+      quantization: null,
+    },
+    reasoning: { status: "selected", effort: "medium" },
+    structured_output: { status: "declared", evidence: "Route catalog response." },
+    cache: { status: "unknown", evidence: "Cache-write semantics are not published." },
+    privacy: { status: "unknown", evidence: "ZDR field is null." },
+    runtime: { status: "unknown", evidence: "No route-level samples." },
+    quality_transfer: { status: "partial", lane_id: "lane-1", evidence: "Benchmark quantization is unspecified." },
+    cost: { status: "estimated", assumptions: "10k input and 1k output tokens; no cache hit assumed." },
+    tradeoff: "Route-level runtime remains unmeasured.",
+    sources: ["https://example.test/model"],
   };
 }
