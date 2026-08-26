@@ -6,3 +6,4 @@ public/
 !public/.gitkeep
 work/
 *.tmp
+.vercel
