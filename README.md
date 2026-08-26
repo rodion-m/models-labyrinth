@@ -1,11 +1,11 @@
 # LLM Models DB
 
-Небольшой read-only каталог моделей, провайдерских endpoint-ов, цен,
-reasoning efforts, benchmark-оценок и опубликованных runtime-метрик.
-Снапшот обновляется GitHub Actions два раза в день, а API не делает сетевых
-запросов во время чтения.
+A small read-only catalog of models, provider endpoints, prices, reasoning
+efforts, benchmark scores, and published runtime metrics. The snapshot is
+refreshed twice a day by GitHub Actions, and API reads make no network
+requests.
 
-## Архитектура
+## Architecture
 
 ```text
 upstream APIs/feeds
@@ -16,53 +16,55 @@ upstream APIs/feeds
         -> Vercel /api/v1/* or static GitHub Pages projection
 ```
 
-`models_db.json` остаётся единственным полным portable-снапшотом. API загружает
-его на cold start, кэширует на уровне модуля максимум на один час и строит
-компактный индекс для фильтров и O(1) поиска модели по id/alias. Пока кеш
-свежий, на каждый запрос JSON заново не парсится; после TTL следующий запрос
-перечитывает, валидирует и индексирует файл заново. Все ответы имеют CDN cache
-headers с тем же часовым TTL.
+`models_db.json` remains the only complete portable snapshot. The API loads it
+on cold start, caches it at module scope for up to one hour, and builds a
+compact index for filters and O(1) model lookup by id/alias. While the cache is
+fresh, requests do not parse the JSON again; after the TTL, the next request
+reloads, validates, and indexes the file. All responses use CDN cache headers
+with the same one-hour TTL.
 
-Потоковые JSON-парсеры и NDJSON здесь намеренно не используются в hot path:
-произвольный фильтр всё равно должен пройти весь массив, поэтому потоковое
-чтение уменьшает пиковую память, но резко увеличивает CPU/latency на запрос.
-SQLite остаётся разумным вариантом при существенном росте снапшота или жёстком
-лимите памяти, но для текущего read-only кейса индексированный in-memory JSON
-даёт более быстрый путь и меньше operational complexity.
+Streaming JSON parsers and NDJSON are intentionally not used in the hot path:
+an arbitrary filter still has to scan the whole array, so streaming reduces
+peak materialization memory but substantially increases CPU/latency per
+request. SQLite remains a reasonable option if the snapshot grows
+substantially or memory limits become strict, but for the current read-only
+case an indexed in-memory JSON snapshot is faster and has less operational
+complexity.
 
-## Источники
+## Sources
 
-Каждое наблюдение хранит `source_id`, URL, время получения, покрытые поля и
-`derived_from`, если значение перепубликовано или агрегировано другим
-источником. Конфликты не сворачиваются в выдуманный единый рейтинг.
+Each observation stores its `source_id`, URL, fetch time, covered fields, and
+`derived_from` when a value is republished or aggregated by another source.
+Conflicts are not collapsed into an invented single rating.
 
-- [OpenRouter models](https://openrouter.ai/docs/guides/overview/models) и
+- [OpenRouter models](https://openrouter.ai/docs/guides/overview/models) and
   [provider routing](https://openrouter.ai/docs/guides/routing/provider-selection)
-  — каталог endpoint-ов, цены, cache, capabilities, quantization и rolling
+  — model catalog, prices, cache, capabilities, quantization, and rolling
   provider runtime metrics.
 - [Models.dev](https://models.dev) — model/provider metadata, limits,
-  modalities, tools, structured output, reasoning и pricing.
-- [BenchLM data](https://www.benchlm.ai/data) — benchmarks, pricing и speed;
-  AA-derived строки помечаются provenance.
+  modalities, tools, structured output, reasoning, and pricing.
+- [BenchLM data](https://www.benchlm.ai/data) — benchmarks, pricing, and speed;
+  AA-derived rows retain their provenance.
 - [Artificial Analysis Data API](https://artificialanalysis.ai/data-api/docs)
-  — headline indices, median performance и pricing при наличии `AA_API_KEY`.
-  Ключ не попадает в git или снапшот; deployment предназначен для внутреннего
-  использования.
-- [Epoch AI data](https://epoch.ai/benchmarks/use-this-data) — независимый
-  benchmark/compute context с консервативным identity join.
+  — headline indices, median performance, and pricing when `AA_API_KEY` is
+  available. The key is never stored in git or the snapshot; this deployment
+  is intended for internal use.
+- [Epoch AI](https://epoch.ai/benchmarks/use-this-data) — independent
+  benchmark and model-compute context with conservative identity joins.
 - [Portkey models](https://github.com/Portkey-AI/models) — pricing supplement
-  для batch/cache/audio/image/search/thinking dimensions.
-- BenchGecko, ModelCap и CloudPrice — вторичные cross-check наблюдения; их
-  пересечения с AA/OpenRouter не считаются независимыми benchmark sources.
+  for batch/cache/audio/image/search/thinking-token dimensions.
+- BenchGecko, ModelCap, and CloudPrice — secondary cross-check observations;
+  overlaps with AA/OpenRouter are not treated as independent benchmark
+  sources.
 
-В базу попадают только данные из сетевых источников. Локальный benchmark,
-probe или собственные error/latency/cache-hit замеры не выполняются. Поэтому
-`measurements[]` заполнится только тогда, когда соответствующие факты реально
-опубликованы upstream.
+The database contains only data from network sources. The project does not run
+local benchmarks, probes, or its own error/latency/cache-hit measurements.
+Therefore, `measurements[]` is populated only when an upstream source actually
+publishes the corresponding facts.
 
 ## API
 
-Все списочные маршруты возвращают envelope с `data` и `meta`:
+All collection endpoints return an envelope with `data` and `meta`:
 
 ```json
 {
@@ -85,35 +87,35 @@ probe или собственные error/latency/cache-hit замеры не в
 - `GET /api/v1/benchmarks`
 - `GET /api/v1/profiles`
 - `GET /api/v1/health`
-- `GET /api/v1/schema` — JSON Schema полного `models_db.json`.
-- `GET /api/v1/snapshot` — redirect на полный статический `snapshot.json`.
+- `GET /api/v1/schema` — JSON Schema for the complete `models_db.json`.
+- `GET /api/v1/snapshot` — redirect to the full static `snapshot.json`.
 
-Поддерживаются фильтры по model id/name/alias, provider, capability,
-reasoning effort, quantization, source, benchmark, open weights, minimum
-context, price estimate и workload profile. `estimated_cost_usd` — только
-детерминированный расчёт по объявленным ценам и профилю; это не измеренная
-стоимость и не прогноз latency.
+Supported filters cover model id/name/alias, provider, capability, reasoning
+effort, quantization, source, benchmark, open weights, minimum context, price
+estimate, and workload profile. `estimated_cost_usd` is only a deterministic
+calculation from declared prices and a named profile; it is not measured cost
+or a latency prediction.
 
-Vercel Functions имеют ограничение 4.5 MB на response body, поэтому страницы
-ограничены 100 элементами. Для полного офлайн-анализа используйте статический
-`/api/v1/snapshot.json` и `/api/v1/schema.json` на GitHub Pages или Vercel.
-`vercel.json` запускает статическую сборку при деплое и включает
-`models_db.json` в bundle динамических API-функций. Полный snapshot отдается
-как статический файл, а не через Function. Если задан `SNAPSHOT_DOWNLOAD_URL`,
-redirect может указывать на прямой GitHub/GitHub Pages URL.
+Vercel Functions have a 4.5 MB response-body limit, so collection pages are
+limited to 100 items. For complete offline analysis, use the static
+`/api/v1/snapshot.json` and `/api/v1/schema.json` on GitHub Pages or Vercel.
+`vercel.json` runs the static build on deploy and includes `models_db.json` in
+the dynamic API function bundle. The full snapshot is served as a static file,
+not through a Function. When `SNAPSHOT_DOWNLOAD_URL` is set, the snapshot
+redirect can point directly to a GitHub/GitHub Pages URL.
 
-## Локальный запуск
+## Local development
 
 ```bash
 npm install
-npm run update:db       # сетевой refresh; AA берётся из .env, если задан
+npm run update:db       # network refresh; AA uses .env when configured
 npm run typecheck
 npm test                # deterministic tests
 npm run test:live       # opt-in public API smoke tests
 npm run build:static    # public/api/v1/* for GitHub Pages
 ```
 
-Скопируйте `.env.example` в `.env`. Реальные ключи не коммитьте:
+Copy `.env.example` to `.env`. Never commit real keys:
 
 ```dotenv
 AA_API_KEY=
@@ -123,57 +125,56 @@ OPENROUTER_ENDPOINT_CAP=120
 OPENROUTER_ENDPOINT_CONCURRENCY=6
 ```
 
-Если источник временно недоступен, его статус становится `error` или
-`skipped`, а прежние данные сохраняются. Пустой каталог считается ошибкой;
-если все источники не сработали, файл не заменяется. Новый снапшот сначала
-валидируется, затем пишется через temporary file и atomic rename.
+If a source is temporarily unavailable, its status becomes `error` or
+`skipped` and previous data is preserved. An empty catalog is treated as an
+error; if all sources fail, the file is not replaced. A new snapshot is
+validated first, then written through a temporary file and atomic rename.
 
-## GitHub Actions и публикация
+## GitHub Actions and deployment
 
-`.github/workflows/refresh.yml` запускается по cron в `03:17` и `15:17` UTC,
-а также вручную. В repository/environment secrets добавьте `AA_API_KEY` и,
-при необходимости, `OPENROUTER_API_KEY`. Workflow выполняет refresh, тесты,
-статическую сборку, коммитит изменившийся `models_db.json` и публикует Pages в
-том же job.
+`.github/workflows/refresh.yml` runs at `03:17` and `15:17` UTC and can also be
+started manually. Add `AA_API_KEY` and, if needed, `OPENROUTER_API_KEY` as
+repository or environment secrets. The workflow refreshes the data, runs the
+tests, builds the static projection, commits a changed `models_db.json`, and
+publishes GitHub Pages in the same job.
 
-На Vercel новый snapshot попадет в runtime после нового деплоя; часовой TTL
-защищает от бессрочного кеширования внутри долгоживущего экземпляра, но не
-меняет файлы immutable deployment самостоятельно.
+On Vercel, a new snapshot enters the runtime only after a new deployment. The
+one-hour TTL prevents indefinite caching inside a long-lived instance, but it
+cannot change files in an immutable deployment by itself.
 
-Статическая проекция содержит:
+The static projection contains:
 
-- `api/v1/snapshot.json` — полный снапшот;
-- `api/v1/schema.json` — схема;
-- `api/v1/models.json` и `api/v1/models/index.json` — компактный индекс;
-- `api/v1/models/<base64url-id>.json` — отдельные модели;
-- `api/v1/offers.json` — первая страница flat-offer представления;
+- `api/v1/snapshot.json` — complete snapshot;
+- `api/v1/schema.json` — schema;
+- `api/v1/models.json` and `api/v1/models/index.json` — compact model index;
+- `api/v1/models/<base64url-id>.json` — individual model records;
+- `api/v1/offers.json` — first page of the flat offer representation;
 - `api/v1/providers.json`, `benchmarks.json`, `profiles.json`, `health.json`.
 
-Для полного списка offers используется `models_db.json`: статический
-`offers.json` намеренно ограничен тем же лимитом страницы, что и динамический
-API, чтобы не дублировать большой snapshot.
+Use `models_db.json` for the complete offer list. Static `offers.json` is
+intentionally limited to the same page size as the dynamic API so it does not
+duplicate the large snapshot.
 
-GitHub Pages не выполняет произвольный server-side filtering; вызывающая
-сторона может скачать snapshot и схему и фильтровать локально. Vercel получает
-тот же query layer динамически.
+GitHub Pages cannot perform arbitrary server-side filtering; clients can
+download the snapshot and schema and filter locally. Vercel provides the same
+query layer dynamically.
 
-## Benchmark выбора формата
+## Format benchmark
 
-Локальный smoke benchmark на исходном снапшоте до включения полной пагинации
-(6 773 модели, Node 24, macOS) дал ориентиры для тёплого чтения списка
-`provider=openai&capability=tools`. Текущий refresh после пагинации содержит
-10 334 модели, поэтому цифры ниже следует воспринимать как сравнительный
-ориентир, а не SLA:
+A local smoke benchmark on the original snapshot before full pagination
+(6,773 models, Node 24, macOS) produced the following warm-list estimates for
+`provider=openai&capability=tools`. The current refresh contains 10,334 models,
+so these figures are comparative guidance, not an SLA:
 
-| Вариант | Тёплый list | Особенность |
+| Option | Warm list | Characteristic |
 | --- | ---: | --- |
-| Full JSON + линейный filter | ~1.1 ms | Прост, но повторно обходит вложенные offers |
-| Full JSON + query index | ~0.08 ms | Выбранный hot path; JSON парсится один раз на cold start |
-| NDJSON + streaming scan | ~77 ms | Низкая материализация, но полный проход на каждый arbitrary filter |
-| SQLite + indexed facets | ~4.8 ms | Меньше памяти и быстрый id lookup, но sync query сложнее и медленнее list |
+| Full JSON + linear filter | ~1.1 ms | Simple, but scans nested offers repeatedly |
+| Full JSON + query index | ~0.08 ms | Selected hot path; JSON is parsed once on cold start |
+| NDJSON + streaming scan | ~77 ms | Low materialization, but scans the file for every arbitrary filter |
+| SQLite + indexed facets | ~4.8 ms | Lower memory and fast id lookup, but more complex and slower for this list query |
 
-Текущий `models_db.json` занимает около 53 MB на диске; plain Node parse в отдельном
-процессе показал около 303 MB peak RSS. Это одноразовая цена на экземпляр
-Vercel Function, а не на запрос; текущий лимит статического файла Vercel Hobby —
-100 MB. При росте файла к нескольким сотням мегабайт
-следующим шагом будет SQLite или prebuilt byte-range/index storage.
+The current `models_db.json` is about 53 MB on disk; a plain Node parse in a
+separate process measured about 303 MB peak RSS. This is a one-time cost per
+Vercel Function instance, not per request. The current Vercel Hobby static-file
+limit is 100 MB. If the file grows to several hundred megabytes, the next step
+is SQLite or prebuilt byte-range/index storage.

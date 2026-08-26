@@ -163,7 +163,7 @@ deployments expose the same `schema.json` contract.
 - static-build/API shape tests;
 - opt-in live smoke tests (`LIVE_TESTS=1`) against public endpoints, with the
   Artificial Analysis test enabled only when `AA_API_KEY` exists;
-- schema contract tests for the full snapshot and `/api/v1/schema` endpoint.
+- schema contract tests for the full snapshot and `/api/v1/schema` endpoint;
 - no local benchmark/probe tests: this project must not claim measurements it
   did not obtain from a network source.
 
@@ -258,65 +258,3 @@ OpenRouter's cache usage and reasoning-token fields are real request metadata,
 not universal per-model cache-hit or effort curves. The case-specific fields
 therefore enter the database only when an upstream source publishes them; the
 project will not synthesize pass/fail or load-test rates.
-
-### Opus medium (completed)
-
-- Keep the observation-shaped schema, but make prices dimension-aware:
-  OpenRouter mixes per-token, per-request, per-image, per-search, and
-  scheduled `overrides`; `-1` means variable/unknown, while `0` is a real
-  free price. Models.dev tiers remain tiered observations.
-- Do not fuzzy-merge model identities. Prefer exact IDs and explicit aliases;
-  unresolved records stay separate. Routing suffixes become offer variants
-  only when their relationship is explicit.
-- Make refresh deterministic, validate before staging, skip unchanged content,
-  cap endpoint fan-out, and use the GitHub commit/deploy as the outer
-  transaction. Empty catalog and empty per-model endpoints have different
-  semantics.
-- Keep Vercel responses paginated under the function payload limit; use a
-  module-scope snapshot cache and CDN headers. Pages deployment must happen in
-  the same workflow job as refresh because a `GITHUB_TOKEN` data commit does
-  not reliably trigger a second workflow.
-- Drop untrusted long descriptions from published data, enforce upstream byte
-  caps, redact query secrets from evidence URLs, and hard-cap query params.
-- The user clarified that this is internal and all data is network-derived:
-  AA can be merged when its account terms allow internal use, but the key is
-  never stored. No local measurement harness is part of v1.
-
-The final decision is JSON plus a schema endpoint, network source adapters,
-source-aware observations, and a small deterministic query layer. No SQLite,
-no fuzzy identity matching, and no local probes. The query layer builds a
-compact in-memory index once per snapshot; the full JSON is parsed at cold
-start and at most once per hour after cache expiry, not per request.
-
-### Storage benchmark decision (2026-08-26)
-
-The pre-pagination snapshot was benchmarked locally on Node 24/macOS with
-6,773 models. Results are directional rather than data measurements; the
-current fully paginated refresh contains 10,334 models:
-
-| Layout | Warm arbitrary list | Trade-off |
-|---|---:|---|
-| Full JSON + linear filter | ~1.1 ms | low code, repeated nested scans |
-| Full JSON + query index | ~0.08 ms | selected hot path, one cold-start parse |
-| NDJSON + streaming scan | ~77 ms | low materialization, full scan per request |
-| SQLite + indexed facets | ~4.8 ms | lower parsed memory, synchronous query and extra build/runtime surface |
-
-Plain Node parsing of the 40.8 MB pre-pagination JSON file reached about 303 MB peak RSS in
-an isolated process. Vercel's current Node Functions memory/bundle limits make
-this acceptable for the current size, while the indexed path is materially
-better for warm request CPU. If the snapshot grows by an order of magnitude,
-re-run this benchmark and move the durable read cache to SQLite or an indexed
-byte-range format. Do not put a streaming parser in the HTTP hot path merely
-to avoid the one-time parse.
-
-## Execution checklist
-
-- [x] Grok 4.6 architecture/source review.
-- [x] Opus medium final architecture review.
-- [x] TypeScript project and canonical schema.
-- [x] Source adapters and resilient updater.
-- [x] Query layer, Vercel handlers, and static projection.
-- [x] Unit, contract, and opt-in live tests.
-- [x] Initial live snapshot and validation.
-- [x] GitHub Actions twice-daily refresh workflow.
-- [x] README with source provenance and deployment instructions.
