@@ -160,9 +160,26 @@ node scripts/select-models.mjs \
 ```
 
 It parses the snapshot once, joins only explicit source-proven aliases, requires
-one offer to satisfy all route gates, groups observations by `lane_id`, and does
-not invent a ranking score. Records with conflicting release identities are
-reported as incompatible observations rather than silently transferred.
+one offer to satisfy all route gates, and groups observations by `lane_id`.
+Records with conflicting release identities are reported as incompatible
+observations rather than silently transferred.
+
+To produce a transparent task-specific rank, first inspect the emitted lanes,
+then rerun with exact lane IDs and explicit weights:
+
+```bash
+node scripts/select-models.mjs --cache /tmp/models-labyrinth \
+  --provider openrouter --effort high \
+  --score <lane-id>=3:higher \
+  --score <another-lane-id>=1:higher \
+  --coverage-penalty 1
+```
+
+The selector uses tie-aware percentiles within each lane. It emits an observed
+weighted score, evidence coverage, a coverage-adjusted aggregate, confidence,
+cohort sizes, and per-lane contributions. A benchmark name that maps to multiple
+lanes is rejected until one exact lane is chosen. This is a task-relative score,
+not a universal model rating.
 
 If custom analysis still exceeds the selector, parse the snapshot once in one
 process and build only the indexes needed for the question. Do not repeatedly
@@ -175,7 +192,10 @@ models[]
   -> evidence by source and freshness
 ```
 
-Keep a candidate when a preferred metric is missing if it still satisfies all hard constraints; lower the confidence instead of assigning a synthetic penalty.
+Keep a candidate when a preferred metric is missing if it still satisfies all
+hard constraints. Preserve its observed score and report the missing-evidence
+coverage penalty separately instead of presenting the penalty as measured model
+performance.
 
 ## Recommendation quality
 

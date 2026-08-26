@@ -50,11 +50,32 @@ export function validateDecision(document) {
     requireStatus(recommendation?.cost, STATUSES.cost, `${at}.cost`, errors);
     requireText(recommendation?.cost?.assumptions, `${at}.cost.assumptions`, errors);
     requireText(recommendation?.tradeoff, `${at}.tradeoff`, errors);
+    if (Object.hasOwn(recommendation ?? {}, "task_fit")) validateTaskFit(recommendation.task_fit, `${at}.task_fit`, errors);
     if (!Array.isArray(recommendation?.sources) || recommendation.sources.length === 0) {
       errors.push(`${at}.sources must be a non-empty array`);
     }
   });
   return errors;
+}
+
+function validateTaskFit(value, path, errors) {
+  for (const field of ["aggregate_score", "observed_score", "coverage", "confidence"]) {
+    if (typeof value?.[field] !== "number" || !Number.isFinite(value[field])) errors.push(`${path}.${field} must be a finite number`);
+  }
+  if (!Array.isArray(value?.contributions) || value.contributions.length === 0) {
+    errors.push(`${path}.contributions must be a non-empty array`);
+  } else {
+    value.contributions.forEach((contribution, index) => {
+      requireText(contribution?.lane_id, `${path}.contributions[${index}].lane_id`, errors);
+      if (typeof contribution?.weight !== "number" || !Number.isFinite(contribution.weight) || contribution.weight <= 0) {
+        errors.push(`${path}.contributions[${index}].weight must be a finite number > 0`);
+      }
+    });
+  }
+  if (typeof value?.sensitivity?.winner_changes !== "boolean") {
+    errors.push(`${path}.sensitivity.winner_changes must be a boolean`);
+  }
+  requireText(value?.sensitivity?.range, `${path}.sensitivity.range`, errors);
 }
 
 function requireStatus(value, allowed, path, errors) {

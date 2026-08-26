@@ -11,6 +11,7 @@ Use this gate after model-quality and route research, before rendering the final
 | Operations | Cache semantics, privacy/data policy, runtime evidence, fallback behavior, and unknowns. |
 | Economics | Workload cost and assumptions, including reasoning and cache dimensions. |
 | Quality transfer | Benchmark lane and whether its model/configuration/quantization match the selected offer. |
+| Aggregate score | If used: explicit lanes and weights, observed score, coverage-adjusted score, confidence, contributions, and sensitivity result. |
 
 For every recommendation, write a temporary JSON artifact and run:
 

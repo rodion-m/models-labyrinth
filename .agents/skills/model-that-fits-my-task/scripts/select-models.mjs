@@ -6,6 +6,9 @@ import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
 import { DEFAULT_BASE, download } from "./download-snapshot.mjs";
+import { parsePositiveNumber, parseScoreDimension, scoreCandidates } from "./task-fit-score.mjs";
+
+export { scoreCandidates } from "./task-fit-score.mjs";
 
 const CURRENT_MAX_AGE_DAYS = 730;
 const FRESH_EVIDENCE_HOURS = 36;
@@ -20,6 +23,8 @@ export function parseSelectionArgs(argv) {
     quantizations: [],
     capabilities: [],
     benchmarks: [],
+    scoreDimensions: [],
+    coveragePenalty: 1,
     models: [],
     minContext: 0,
     limit: 25,
@@ -37,13 +42,19 @@ export function parseSelectionArgs(argv) {
     if (flag === "--help" || flag === "-h") return { help: true };
     const key = repeatable.get(flag);
     const value = argv[index + 1];
+    if (flag === "--score") {
+      if (!value) throw new Error("--score requires a value");
+      options.scoreDimensions.push(parseScoreDimension(value));
+      index += 1;
+      continue;
+    }
     if (key) {
       if (!value) throw new Error(`${flag} requires a value`);
       options[key].push(value.toLowerCase());
       index += 1;
       continue;
     }
-    if (!["--base", "--cache", "--scope", "--min-context", "--limit"].includes(flag)) {
+    if (!["--base", "--cache", "--scope", "--min-context", "--limit", "--coverage-penalty"].includes(flag)) {
       throw new Error(`unknown argument: ${flag}`);
     }
     if (!value) throw new Error(`${flag} requires a value`);
@@ -52,6 +63,7 @@ export function parseSelectionArgs(argv) {
     if (flag === "--scope") options.scope = value;
     if (flag === "--min-context") options.minContext = parseInteger(value, flag, 0);
     if (flag === "--limit") options.limit = parseInteger(value, flag, 1);
+    if (flag === "--coverage-penalty") options.coveragePenalty = parsePositiveNumber(value, flag);
     index += 1;
   }
   if (!options.cache) throw new Error("--cache is required");
@@ -123,9 +135,17 @@ export function selectCandidates(snapshot, options) {
       incompatible_observation_count: incompatibleObservationCount,
     });
   }
-  candidates.sort((left, right) =>
-    String(right.release_date ?? "").localeCompare(String(left.release_date ?? ""))
-      || left.canonical_model_id.localeCompare(right.canonical_model_id));
+  const scoring = scoreCandidates(candidates, options.scoreDimensions ?? [], options.coveragePenalty ?? 1);
+  candidates.sort((left, right) => {
+    if (scoring) {
+      const scoreOrder = (right.task_fit?.aggregate_score ?? -1) - (left.task_fit?.aggregate_score ?? -1);
+      if (scoreOrder !== 0) return scoreOrder;
+      const confidenceOrder = (right.task_fit?.confidence ?? -1) - (left.task_fit?.confidence ?? -1);
+      if (confidenceOrder !== 0) return confidenceOrder;
+    }
+    return String(right.release_date ?? "").localeCompare(String(left.release_date ?? ""))
+      || left.canonical_model_id.localeCompare(right.canonical_model_id);
+  });
   return {
     data: candidates.slice(0, options.limit),
     meta: {
@@ -135,6 +155,7 @@ export function selectCandidates(snapshot, options) {
       current_max_age_days: CURRENT_MAX_AGE_DAYS,
       generated_at: snapshot.generated_at,
       content_hash: snapshot.content_hash,
+      scoring,
     },
   };
 }
@@ -247,7 +268,7 @@ function parseInteger(value, name, minimum) {
 }
 
 function usage() {
-  return "Usage: node scripts/select-models.mjs --cache <directory> [--scope current|all] [--provider id] [--effort level] [--quantization type] [--capability name] [--min-context tokens] [--benchmark id] [--model id] [--limit n] [--base url]";
+  return "Usage: node scripts/select-models.mjs --cache <directory> [--scope current|all] [--provider id] [--effort level] [--quantization type] [--capability name] [--min-context tokens] [--benchmark id] [--score benchmark-or-lane[=weight][:higher|lower]] [--coverage-penalty n] [--model id] [--limit n] [--base url]";
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

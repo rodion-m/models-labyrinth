@@ -55,7 +55,7 @@ For OpenRouter endpoint selection after choosing an exact model slug, read [open
 - Reject implausible units and route-ranker output that cannot be traced to the current endpoint response. Empty stats, `null` policy fields, and undocumented cache behavior remain unknown.
 - Cost must reflect the workload: input, output, cache read/write, reasoning tokens, requests, tiers, and non-text media when material. A `null` estimate is unknown.
 - Prefer observed evidence over derived data and trace `derived_from`. Republished scores do not become independent confirmations.
-- For a ranked result, use the selector's cohort-relative task-fit score with exact lanes and explicit weights; report score, coverage, confidence, and contributions.
+- When one ranked result is useful, use the selector's task-fit score rather than inventing an average. Select exact lanes, set explicit weights, and report `aggregate_score`, `observed_score`, `coverage`, `confidence`, and contributions together. The score is relative to the surviving cohort, not a permanent model rating.
 - Do not run probes or spend provider credits. Use network sources and transparent calculations only.
 
 For full-snapshot work, use `download-snapshot.mjs` or `select-models.mjs`; do not fetch health, schema, and snapshot independently. The bundle `content_hash` is the evidence identity. In high-stakes domains, published evidence narrows candidates but never replaces organization-specific validation and qualified review.

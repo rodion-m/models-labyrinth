@@ -16,6 +16,11 @@ when the comparison cannot be expressed efficiently through API filters.
 The skill keeps model quality, provider behavior, quantization, price, and
 evidence confidence separate until the user's task makes their trade-offs
 explicit. It does not run models or invent a universal leaderboard score.
+When a ranked answer is useful, its offline selector can calculate a
+task-relative score from exact comparison lanes and user-visible weights. The
+result always exposes observed percentile quality, benchmark coverage,
+confidence, cohort size, and per-lane contributions rather than hiding them in
+one opaque number.
 Its business-domain playbook routes finance, legal, healthcare, education,
 public-service, office, SaaS automation, customer-service, HR, IT operations,
 cybersecurity, and modernization workloads to the closest available evidence,
@@ -238,8 +243,8 @@ query layer dynamically.
 
 A local smoke benchmark on the original snapshot before full pagination
 (6,773 models, Node 24, macOS) produced the following warm-list estimates for
-`provider=openai&capability=tools`. The current refresh contains 10,334 models,
-so these figures are comparative guidance, not an SLA:
+`provider=openai&capability=tools`. Snapshot size and catalog cardinality change
+with every refresh, so these figures are comparative guidance, not an SLA:
 
 | Option | Warm list | Characteristic |
 | --- | ---: | --- |
@@ -248,7 +253,7 @@ so these figures are comparative guidance, not an SLA:
 | NDJSON + streaming scan | ~77 ms | Low materialization, but scans the file for every arbitrary filter |
 | SQLite + indexed facets | ~4.8 ms | Lower memory and fast id lookup, but more complex and slower for this list query |
 
-The current `models_db.json` is about 53 MB on disk; a plain Node parse in a
+The current `models_db.json` is roughly 60 MB on disk; a plain Node parse in a
 separate process measured about 303 MB peak RSS. This is a one-time cost per
 Vercel Function instance, not per request. The current Vercel Hobby static-file
 limit is 100 MB. If the file grows to several hundred megabytes, the next step

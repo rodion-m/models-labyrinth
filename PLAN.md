@@ -404,3 +404,15 @@ OpenRouter's cache usage and reasoning-token fields are real request metadata,
 not universal per-model cache-hit or effort curves. The case-specific fields
 therefore enter the database only when an upstream source publishes them; the
 project will not synthesize pass/fail or load-test rates.
+
+### Task-fit score extension
+
+The agent may publish an aggregate only after the user or playbook selects exact
+comparison lanes and explicit positive weights. Each lane is normalized with a
+tie-aware empirical percentile over the surviving candidates. The reported score
+is `weighted observed percentile × coverage^penalty` (default penalty `1`), with
+observed score, coverage, confidence, cohort size, and every contribution shown
+separately. Missing evidence reduces coverage but is never relabeled as measured
+zero performance. A benchmark id that resolves to multiple lanes is an error until
+the agent selects one exact lane; this keeps effort, evaluator, version, metric,
+and harness conditions from being blended invisibly.

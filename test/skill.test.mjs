@@ -44,7 +44,7 @@ test("snapshot downloader rejects mismatched or unhealthy data", () => {
   assert.throws(() => validateBundle(health, { ...schema, properties: { schema_version: { const: "2.0" } } }, snapshot), /versions differ/);
 });
 
-test("live snapshot and schema remain mutually consistent", { skip: process.env.LIVE_TESTS !== "1", timeout: 180_000 }, async () => {
+test("live snapshot and schema remain mutually consistent", { skip: process.env.LIVE_TESTS !== "1", timeout: 600_000 }, async () => {
   const { download } = await import("../.agents/skills/model-that-fits-my-task/scripts/download-snapshot.mjs");
   const { mkdtemp, rm } = await import("node:fs/promises");
   const { tmpdir } = await import("node:os");

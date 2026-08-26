@@ -10,6 +10,7 @@ import { comparisonLaneId } from "../src/lane.ts";
 import {
   comparisonLane,
   parseSelectionArgs,
+  scoreCandidates,
   selectCandidates,
 } from "../.agents/skills/model-that-fits-my-task/scripts/select-models.mjs";
 
@@ -21,6 +22,8 @@ test("offline selector parses explicit bounded filters", () => {
     "--quantization", "fp8",
     "--capability", "tools",
     "--benchmark", "agentic.test",
+    "--score", "agentic.test=3:higher",
+    "--coverage-penalty", "1.5",
     "--min-context", "200000",
     "--limit", "3",
   ]), {
@@ -32,6 +35,8 @@ test("offline selector parses explicit bounded filters", () => {
     quantizations: ["fp8"],
     capabilities: ["tools"],
     benchmarks: ["agentic.test"],
+    scoreDimensions: [{ target: "agentic.test", weight: 3, direction: "higher" }],
+    coveragePenalty: 1.5,
     models: [],
     minContext: 200000,
     limit: 3,
@@ -65,6 +70,46 @@ test("comparison lanes are stable and change with benchmark conditions", () => {
   assert.notEqual(first.lane_id, otherEffort.lane_id);
 });
 
+test("task-fit scoring uses exact lanes, explicit weights, and a visible coverage penalty", () => {
+  const evidence = { source_id: "fixture", url: "https://example.test", fetched_at: "2026-08-27T00:00:00.000Z", status: "observed" };
+  const laneA = comparisonLane({ benchmark_id: "coding.a", metric: "pass_rate" }).lane_id;
+  const laneB = comparisonLane({ benchmark_id: "coding.b", metric: "pass_rate" }).lane_id;
+  const candidates = [
+    { canonical_model_id: "complete", observations: [
+      { benchmark_id: "coding.a", lane_id: laneA, value: 80, metric: "pass_rate", evidence },
+      { benchmark_id: "coding.b", lane_id: laneB, value: 60, metric: "pass_rate", evidence },
+    ] },
+    { canonical_model_id: "sparse", observations: [
+      { benchmark_id: "coding.a", lane_id: laneA, value: 90, metric: "pass_rate", evidence },
+    ] },
+    { canonical_model_id: "baseline", observations: [
+      { benchmark_id: "coding.a", lane_id: laneA, value: 70, metric: "pass_rate", evidence },
+      { benchmark_id: "coding.b", lane_id: laneB, value: 50, metric: "pass_rate", evidence },
+    ] },
+  ];
+  const meta = scoreCandidates(candidates, [
+    { target: laneA, weight: 1, direction: "higher" },
+    { target: laneB, weight: 1, direction: "higher" },
+  ], 1);
+
+  assert.equal(meta.dimensions.length, 2);
+  assert.equal(candidates[0].task_fit.coverage, 1);
+  assert.equal(candidates[0].task_fit.aggregate_score, 75);
+  assert.equal(candidates[1].task_fit.observed_score, 100);
+  assert.equal(candidates[1].task_fit.coverage, 0.5);
+  assert.equal(candidates[1].task_fit.aggregate_score, 50);
+  assert.equal(candidates[2].task_fit.aggregate_score, 0);
+});
+
+test("task-fit scoring refuses to blend multiple comparison lanes behind one benchmark id", () => {
+  const evidence = { source_id: "fixture", status: "observed" };
+  const candidates = [{ canonical_model_id: "model", observations: [
+    { benchmark_id: "coding.a", lane_id: "lane-low", effort: "low", value: 10, evidence },
+    { benchmark_id: "coding.a", lane_id: "lane-high", effort: "high", value: 20, evidence },
+  ] }];
+  assert.throws(() => scoreCandidates(candidates, [{ target: "coding.a", weight: 1, direction: "higher" }]), /spans 2 comparison lanes/);
+});
+
 test("offline selection joins only explicit aliases and keeps route constraints on one offer", () => {
   const evidence = { source_id: "fixture", url: "https://example.test", fetched_at: "2026-08-27T00:00:00.000Z", status: "observed" };
   const snapshot = {
@@ -73,6 +118,8 @@ test("offline selection joins only explicit aliases and keeps route constraints 
     content_hash: "fixture",
     sources: [],
     benchmarks: [],
+    scoreDimensions: [],
+    coveragePenalty: 1,
     workload_profiles: [],
     models: [
       model({
@@ -164,6 +211,19 @@ test("decision validation rejects omitted provider and effort but accepts explic
   unknown.reasoning = { status: "unknown", reason: "The provider does not publish named effort support." };
   unknown.runtime = { status: "unknown", evidence: "The endpoint stats response was empty." };
   assert.deepEqual(validateDecision({ recommendations: [unknown] }), []);
+
+  const scored = completeRecommendation();
+  scored.task_fit = {
+    aggregate_score: 78,
+    observed_score: 82,
+    coverage: 0.95,
+    confidence: 0.8,
+    contributions: [{ lane_id: "lane-1", weight: 3 }],
+    sensitivity: { winner_changes: false, range: "±25%" },
+  };
+  assert.deepEqual(validateDecision({ recommendations: [scored] }), []);
+  delete scored.task_fit.sensitivity;
+  assert.ok(validateDecision({ recommendations: [scored] }).some((error) => error.includes("sensitivity.winner_changes")));
 });
 
 function selection(overrides = {}) {

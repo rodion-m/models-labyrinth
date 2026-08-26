@@ -27,3 +27,41 @@ For finance, legal, healthcare, education, public services, office artifacts, Sa
 Do not mix ARC-AGI 1/2/3, Terminal-Bench 2.0/2.1/3, OSWorld/Verified/2.0, FrontierMath legacy/V2, τ-bench releases or domains, or tool/no-tool lanes. Keep benchmark releases distinct unless the catalog explicitly represents a metric, evaluator, or variant of one canonical release.
 
 When no close benchmark exists, say so and lower confidence instead of synthesizing a universal score. Use broad evidence only as a tie-breaker or prior, never as proof of performance on an uncovered workflow.
+
+## Task-fit scoring
+
+Use an aggregate only after hard route constraints leave a meaningful cohort.
+Choose two to five benchmarks that directly represent the deliverable and select
+one exact `lane_id` for each. Give the closest end-to-end benchmark the largest
+weight; use broad knowledge or legacy anchors only as small tie-breakers. Record
+weights before looking at the winner.
+
+The selector normalizes each lane with a tie-aware empirical percentile, then
+reports:
+
+```text
+observed_score = sum(weight × percentile) / sum(weight present)
+coverage = sum(weight present) / sum(weight requested)
+aggregate_score = observed_score × coverage ^ coverage_penalty
+```
+
+Use `coverage_penalty=1` unless the user explicitly prefers a more tolerant or
+more conservative evidence policy. Missing evidence lowers coverage; it is not a
+measurement of poor performance. `confidence` also reflects cohort size and
+whether evidence is observed, derived, or claimed. Always show observed score,
+coverage, confidence, cohort sizes, and contributions beside the aggregate.
+
+Example after discovering exact lane IDs:
+
+```bash
+node scripts/select-models.mjs --cache /tmp/models-labyrinth \
+  --provider openrouter --capability tools --effort high \
+  --score <terminal-bench-lane-id>=3:higher \
+  --score <toolathlon-lane-id>=2:higher \
+  --score <cost-or-error-lane-id>=1:lower
+```
+
+Vary each material weight by roughly ±25% and report whether the winner changes.
+Do not combine different efforts, evaluators, dataset versions, metrics, or
+harness configurations behind one benchmark name. If only one model is present
+in a lane, its percentile is neutral (50) and confidence is low.
