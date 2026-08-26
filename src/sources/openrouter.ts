@@ -31,6 +31,7 @@ export async function collectOpenRouter(options: OpenRouterOptions = {}): Promis
   if (rows.length === 0) throw new Error("OpenRouter catalog returned no models");
   const records = rows.map((row) => normalizeModel(row, fetchedAt));
   const warnings: string[] = [];
+  const refreshedEndpointModelIds = new Set<string>();
   const includeEndpoints = options.includeEndpoints ?? process.env.OPENROUTER_ENDPOINTS !== "0";
   if (includeEndpoints) {
     const cap = options.endpointCap ?? positiveEnv("OPENROUTER_ENDPOINT_CAP", 120);
@@ -64,6 +65,7 @@ export async function collectOpenRouter(options: OpenRouterOptions = {}): Promis
       const identity = canonicalModelId({ sourceId: "openrouter", rawId: result.row.id, publisher: result.row.id?.split?.("/")[0], name: result.row.name });
       const target = byId.get(identity.id);
       if (!target) continue;
+      refreshedEndpointModelIds.add(identity.id);
       for (const endpoint of result.endpoints) {
         const endpointRecord = record(endpoint);
         const providerId = stringValue(endpointRecord.provider_name) ?? "unknown";
@@ -98,6 +100,7 @@ export async function collectOpenRouter(options: OpenRouterOptions = {}): Promis
       }
     }
   }
+  preservePreviousEndpointOffers(records, options.previous, refreshedEndpointModelIds);
   return {
     source_id: "openrouter",
     url: OPENROUTER_MODELS_URL,
@@ -105,7 +108,27 @@ export async function collectOpenRouter(options: OpenRouterOptions = {}): Promis
     status: "ok",
     records,
     warnings,
+    replace_previous: true,
   };
+}
+
+function preservePreviousEndpointOffers(
+  records: SourceRecord[],
+  previous: OpenRouterOptions["previous"],
+  refreshedModelIds: Set<string>,
+): void {
+  if (!previous?.models) return;
+  const previousById = new Map(previous.models.map((model) => [model.id, model]));
+  for (const current of records) {
+    if (refreshedModelIds.has(current.id)) continue;
+    const previousModel = previousById.get(current.id);
+    if (!previousModel) continue;
+    const existingIds = new Set((current.offers ?? []).map((value) => value.id));
+    const retained = (previousModel.offers ?? []).filter((value) =>
+      !existingIds.has(value.id) && value.evidence.some((item) => item.source_id === "openrouter")
+    );
+    current.offers = [...(current.offers ?? []), ...structuredClone(retained)];
+  }
 }
 
 function normalizeModel(row: any, fetchedAt: string): SourceRecord {

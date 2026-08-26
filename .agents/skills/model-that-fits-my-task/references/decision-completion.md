@@ -12,7 +12,7 @@ Use this gate after model-quality and route research, before rendering the final
 | Economics | Workload cost and assumptions, including reasoning and cache dimensions. |
 | Quality transfer | Benchmark lane and whether its model/configuration/quantization match the selected offer. |
 
-For multiple candidates or a consequential deployment decision, write a temporary JSON artifact and run:
+For every recommendation, write a temporary JSON artifact and run:
 
 ```bash
 node scripts/validate-decision.mjs /path/to/decision.json

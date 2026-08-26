@@ -14,14 +14,6 @@ export function isFreshEvidence(fetchedAt: string | undefined, generatedAt: stri
   return generated - fetched <= EVIDENCE_STALE_MS;
 }
 
-export function latestEvidenceAt(model: Model): string | undefined {
-  const times = [
-    ...model.evidence.map((item) => item.fetched_at),
-    ...model.offers.flatMap((offer) => offer.evidence.map((item) => item.fetched_at)),
-  ].filter(Boolean).sort();
-  return times.at(-1);
-}
-
 export function hasActiveOffer(model: Model): boolean {
   return model.offers.some((offer) => offer.status === "active");
 }
@@ -36,7 +28,7 @@ export function inCurrentScope(model: Model, generatedAt: string): boolean {
       .flatMap((offer) => offer.evidence.map((item) => item.fetched_at))
       .sort()
       .at(-1);
-    return isFreshEvidence(latestOfferEvidence, generatedAt) || isFreshEvidence(latestEvidenceAt(model), generatedAt);
+    return isFreshEvidence(latestOfferEvidence, generatedAt);
   }
   return release >= recencyCutoffDate(generatedAt);
 }

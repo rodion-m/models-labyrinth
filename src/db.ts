@@ -32,6 +32,10 @@ export function loadSnapshot(options: SnapshotLoadOptions = {}): Snapshot {
   return cached;
 }
 
+export function loadArchiveSnapshot(projectRoot = process.cwd()): Snapshot {
+  return loadSnapshot({ path: resolve(projectRoot, "models_db.json") });
+}
+
 export function clearSnapshotCache(): void {
   cached = undefined;
   cachedPath = undefined;

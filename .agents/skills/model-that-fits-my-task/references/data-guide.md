@@ -150,6 +150,8 @@ node scripts/select-models.mjs \
   --cache /tmp/models-labyrinth \
   --scope current \
   --provider openrouter \
+  --effort high \
+  --quantization fp8 \
   --capability tools \
   --capability structured_outputs \
   --min-context 200000 \

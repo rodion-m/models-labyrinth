@@ -6,6 +6,7 @@ import test from "node:test";
 
 import { download } from "../.agents/skills/model-that-fits-my-task/scripts/download-snapshot.mjs";
 import { validateDecision } from "../.agents/skills/model-that-fits-my-task/scripts/validate-decision.mjs";
+import { comparisonLaneId } from "../src/lane.ts";
 import {
   comparisonLane,
   parseSelectionArgs,
@@ -16,6 +17,8 @@ test("offline selector parses explicit bounded filters", () => {
   assert.deepEqual(parseSelectionArgs([
     "--cache", "/tmp/models",
     "--provider", "OpenRouter",
+    "--effort", "high",
+    "--quantization", "fp8",
     "--capability", "tools",
     "--benchmark", "agentic.test",
     "--min-context", "200000",
@@ -25,6 +28,8 @@ test("offline selector parses explicit bounded filters", () => {
     cache: "/tmp/models",
     scope: "current",
     providers: ["openrouter"],
+    efforts: ["high"],
+    quantizations: ["fp8"],
     capabilities: ["tools"],
     benchmarks: ["agentic.test"],
     models: [],
@@ -56,6 +61,7 @@ test("comparison lanes are stable and change with benchmark conditions", () => {
     configuration: { timeout: 30, tools: true },
   });
   assert.equal(first.lane_id, reordered.lane_id);
+  assert.equal(first.lane_id, comparisonLaneId({ benchmark_id: "agentic.test", metric: "pass_rate", configuration: { timeout: 30, tools: true } }));
   assert.notEqual(first.lane_id, otherEffort.lane_id);
 });
 
@@ -102,8 +108,22 @@ test("offline selection joins only explicit aliases and keeps route constraints 
   assert.equal(current.data[0].observations[0].value, 81);
   assert.equal(current.data[0].matching_offers[0].provider_id, "openrouter");
 
+  snapshot.models[1].offers[0].reasoning_efforts = ["high"];
+  snapshot.models[1].offers[0].quantization = "fp8";
+  assert.equal(selectCandidates(snapshot, selection({ efforts: ["high"], quantizations: ["fp8"] })).meta.total, 1);
+  assert.equal(selectCandidates(snapshot, selection({ efforts: ["medium"] })).meta.total, 0);
+
   const all = selectCandidates(snapshot, selection({ scope: "all" }));
   assert.equal(all.meta.total, 2);
+});
+
+test("offline selection does not transfer alias evidence when either release is unknown", () => {
+  const evidence = { source_id: "fixture", url: "https://example.test", fetched_at: "2026-08-27T00:00:00.000Z", status: "observed" };
+  const canonical = model({ id: "vendor/model-2", aliases: [{ id: "vendor/model-two", source_id: "fixture" }], offers: [offer("openrouter", { tools: true }, 100_000, evidence)], evidence });
+  const aliasRecord = model({ id: "vendor/model-two", aliases: [{ id: "vendor/model-2", source_id: "fixture" }], benchmarks: [{ benchmark_id: "agentic.test", value: 99, evidence }], evidence });
+  delete aliasRecord.release_date;
+  const selected = selectCandidates({ schema_version: "1.0", generated_at: "2026-08-27T00:00:00.000Z", content_hash: "fixture", sources: [], benchmarks: [], workload_profiles: [], models: [canonical, aliasRecord] }, selection({ benchmarks: ["agentic.test"] }));
+  assert.equal(selected.meta.total, 0);
 });
 
 test("bundle downloader reuses a matching content-hash cache without downloading the snapshot again", async () => {
@@ -150,6 +170,8 @@ function selection(overrides = {}) {
   return {
     scope: "current",
     providers: [],
+    efforts: [],
+    quantizations: [],
     capabilities: [],
     benchmarks: [],
     models: [],

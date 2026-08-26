@@ -3,7 +3,7 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { clearSnapshotCache, loadSnapshot } from "../src/db.js";
+import { clearSnapshotCache, loadArchiveSnapshot, loadSnapshot } from "../src/db.js";
 import { canonicalModelId, splitRoutingVariant } from "../src/identity.js";
 import { mergeSnapshots } from "../src/merge.js";
 import { estimateWorkloadCost } from "../src/cost.js";
@@ -87,6 +87,13 @@ test("default scope is current with transparent metadata and scope=all keeps the
   assert.equal(status.current_model_count, 1);
   assert.equal(status.all_model_count, snapshot.models.length);
   assert.equal(status.content_hash, snapshot.content_hash);
+
+  const unknownRelease = sourceRecord("models_dev", "vendor/unknown-release", "Unknown release", "unknown-release");
+  delete unknownRelease.release_date;
+  unknownRelease.evidence![0].fetched_at = "2026-08-26T00:00:00.000Z";
+  unknownRelease.offers![0].evidence[0].fetched_at = "2026-01-01T00:00:00.000Z";
+  const unknownSnapshot = mergeSnapshots(undefined, [result("models_dev", [unknownRelease])], "2026-08-26T00:00:00.000Z");
+  assert.equal(listModels(unknownSnapshot, new URLSearchParams("view=summary")).data.length, 0);
 });
 
 test("sort=released orders by release date and released_after/before are explicit filters", () => {
@@ -124,6 +131,12 @@ test("provider plus capability or context constraints cannot match across two di
   assert.equal(listModels(snapshot, new URLSearchParams("provider=openrouter&capability=tools&view=summary")).data.length, 0);
   assert.equal(listModels(snapshot, new URLSearchParams("provider=openai&min_context=100000&view=summary")).data.length, 0);
   assert.equal(listModels(snapshot, new URLSearchParams("provider=openrouter&min_context=100000&view=summary")).data.length, 1);
+
+  const modelOnlyClaim = sourceRecord("models_dev", "vendor/model-only-tools", "Model-only tools", "model-only");
+  modelOnlyClaim.capabilities = { tools: true };
+  modelOnlyClaim.offers![0].capabilities = { tools: false };
+  const modelOnlySnapshot = mergeSnapshots(undefined, [result("models_dev", [modelOnlyClaim])], "2026-08-26T00:00:00.000Z");
+  assert.equal(listModels(modelOnlySnapshot, new URLSearchParams("capability=tools&view=summary")).data.length, 0);
 });
 
 test("punctuation and batch aliases join without merging dated versions or families", () => {
@@ -264,6 +277,7 @@ test("workload cost is complete for cache write, tiers, and reasoning or reports
   });
   assert.equal(missing.estimated_cost_usd, null);
   assert.ok(missing.missing_dimensions.includes("cache_read"));
+  assert.ok(missing.missing_dimensions.includes("cache_write_tokens"));
 
   const snapshot = mergeSnapshots(undefined, [result("models_dev", [sourceRecord("models_dev", "openai/gpt-4o", "GPT-4o", "offer")])], "2026-08-26T00:00:00.000Z");
   snapshot.models[0].offers[0].pricing = normalizeMillionPricing({ input: 1, output: 2, cache_read: 0.2, cache_write: 1.25 });
@@ -323,6 +337,24 @@ test("runtime query artifact is compact and the API cache lasts for the instance
     clock = 60 * 60 * 1000 + 1;
     assert.equal(loadSnapshot({ path: artifactPath, now: () => clock }).models[0].name, first.models[0].name);
     assert.equal(loadSnapshot({ path: artifactPath, now: () => clock }), first);
+  } finally {
+    clearSnapshotCache();
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("static builds load the archival snapshot even when a stale runtime artifact exists", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "archive-source-"));
+  const archive = fixtureSnapshot();
+  const stale = structuredClone(archive);
+  stale.content_hash = "stale";
+  stale.models[0].name = "stale runtime";
+  try {
+    await writeFile(join(directory, "models_db.json"), `${JSON.stringify(archive)}\n`);
+    await writeFile(join(directory, "runtime-query.json"), `${JSON.stringify(stale)}\n`);
+    clearSnapshotCache();
+    assert.equal(loadArchiveSnapshot(directory).content_hash, archive.content_hash);
+    assert.equal(loadArchiveSnapshot(directory).models[0].name, archive.models[0].name);
   } finally {
     clearSnapshotCache();
     await rm(directory, { recursive: true, force: true });

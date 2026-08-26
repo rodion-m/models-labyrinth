@@ -16,6 +16,8 @@ export function parseSelectionArgs(argv) {
     cache: undefined,
     scope: "current",
     providers: [],
+    efforts: [],
+    quantizations: [],
     capabilities: [],
     benchmarks: [],
     models: [],
@@ -24,6 +26,8 @@ export function parseSelectionArgs(argv) {
   };
   const repeatable = new Map([
     ["--provider", "providers"],
+    ["--effort", "efforts"],
+    ["--quantization", "quantizations"],
     ["--capability", "capabilities"],
     ["--benchmark", "benchmarks"],
     ["--model", "models"],
@@ -66,7 +70,17 @@ export function comparisonLane(observation) {
     dataset_version: observation.dataset_version ?? null,
     configuration: stableValue(observation.configuration ?? {}),
   };
-  const laneId = createHash("sha256").update(JSON.stringify(conditions)).digest("hex").slice(0, 20);
+  const parts = [
+    observation.benchmark_id,
+    observation.metric ?? "",
+    observation.unit ?? "",
+    observation.variant ?? "",
+    observation.effort ?? "",
+    observation.evaluator ?? "",
+    observation.dataset_version ?? "",
+    JSON.stringify(stableValue(observation.configuration ?? {})),
+  ].join("\u001f");
+  const laneId = createHash("sha256").update(parts).digest("hex").slice(0, 32);
   return { lane_id: laneId, conditions };
 }
 
@@ -87,7 +101,7 @@ export function selectCandidates(snapshot, options) {
     let incompatibleObservationCount = 0;
     for (const record of records) for (const observation of record.benchmarks ?? []) {
       if (options.benchmarks.length > 0 && !options.benchmarks.includes(observation.benchmark_id.toLowerCase())) continue;
-      if (!sameRelease(record.release_date, canonical.release_date)) {
+      if (!sameRelease(record, canonical)) {
         incompatibleObservationCount += 1;
         continue;
       }
@@ -172,12 +186,15 @@ function isCurrent(records, activeOffers, generatedAt) {
 }
 
 function hasOfferFilters(options) {
-  return options.providers.length > 0 || options.capabilities.length > 0 || options.minContext > 0;
+  return options.providers.length > 0 || options.efforts.length > 0 || options.quantizations.length > 0
+    || options.capabilities.length > 0 || options.minContext > 0;
 }
 
 function offerMatches(offer, options) {
   if (offer.status !== "active") return false;
   if (options.providers.length > 0 && !options.providers.includes(String(offer.provider_id).toLowerCase())) return false;
+  if (options.efforts.length > 0 && !options.efforts.some((effort) => (offer.reasoning_efforts ?? []).map((value) => value.toLowerCase()).includes(effort))) return false;
+  if (options.quantizations.length > 0 && !options.quantizations.includes(String(offer.quantization ?? "").toLowerCase())) return false;
   if (options.minContext > 0 && (offer.context_tokens ?? 0) < options.minContext) return false;
   return options.capabilities.every((capability) =>
     offer.capabilities?.[capability] === true
@@ -190,9 +207,10 @@ function matchesModel(records, requested) {
   return requested.some((id) => names.has(id));
 }
 
-function sameRelease(left, right) {
-  if (!left || !right) return true;
-  return String(left).slice(0, 10) === String(right).slice(0, 10);
+function sameRelease(record, canonical) {
+  if (record.id === canonical.id) return true;
+  if (!record.release_date || !canonical.release_date) return false;
+  return String(record.release_date).slice(0, 10) === String(canonical.release_date).slice(0, 10);
 }
 
 function compactOffer(offer) {
@@ -229,7 +247,7 @@ function parseInteger(value, name, minimum) {
 }
 
 function usage() {
-  return "Usage: node scripts/select-models.mjs --cache <directory> [--scope current|all] [--provider id] [--capability name] [--min-context tokens] [--benchmark id] [--model id] [--limit n] [--base url]";
+  return "Usage: node scripts/select-models.mjs --cache <directory> [--scope current|all] [--provider id] [--effort level] [--quantization type] [--capability name] [--min-context tokens] [--benchmark id] [--model id] [--limit n] [--base url]";
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

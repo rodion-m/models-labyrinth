@@ -157,7 +157,7 @@ test("multiple metrics share a benchmark identity but remain distinct observatio
 test("query filters nested offers, paginates and computes a transparent profile estimate", () => {
   const record = sourceRecord("models_dev", "openai/gpt-4o", "GPT-4o", "https://models.dev/catalog.json", "offer");
   record.offers![0].reasoning_efforts = ["low", "medium"];
-  record.offers![0].pricing = normalizeMillionPricing({ input: 1, output: 2, cache_read: 0.2 });
+  record.offers![0].pricing = normalizeMillionPricing({ input: 1, output: 2, cache_read: 0.2, cache_write: 1.1 });
   const snapshot = mergeSnapshots(undefined, [result("models_dev", [record])], "2026-08-26T00:00:00.000Z");
   assert.equal(listModels(snapshot, new URLSearchParams("capability=tools&limit=1")).data.length, 1);
   const offers = listOffers(snapshot, new URLSearchParams("profile=rag-long-prefix&reasoning_effort=low"));
@@ -171,7 +171,7 @@ test("custom workload profile calculates exact task cost and rejects incomplete 
   const record = sourceRecord("models_dev", "openai/gpt-4o", "GPT-4o", "https://models.dev/catalog.json", "offer");
   record.offers![0].pricing = normalizeMillionPricing({ input: 1, output: 2, cache_read: 0.2 });
   const snapshot = mergeSnapshots(undefined, [result("models_dev", [record])], "2026-08-26T00:00:00.000Z");
-  const params = new URLSearchParams("profile=custom&input_tokens=10000&output_tokens=300&cached_input_ratio=0.5&requests_per_task=2&sort=cost");
+  const params = new URLSearchParams("profile=custom&input_tokens=10000&output_tokens=300&cached_input_ratio=0.5&cache_write_tokens=0&requests_per_task=2&sort=cost");
   const offer = listOffers(snapshot, params).data[0];
   assert.equal(offer.estimated_cost_usd, 0.0132);
   assert.deepEqual(offer.workload_profile, {
@@ -179,6 +179,7 @@ test("custom workload profile calculates exact task cost and rejects incomplete 
     description: "Caller-supplied workload profile.",
     input_tokens: 10_000,
     cached_input_ratio: 0.5,
+    cache_write_tokens: 0,
     output_tokens: 300,
     requests_per_task: 2,
   });
@@ -211,6 +212,7 @@ test("selection navigation exposes facets, compact candidates, and offer-level g
   const record = sourceRecord("models_dev", "openai/gpt-4o", "GPT-4o", "https://models.dev/catalog.json", "offer");
   record.offers![0].context_tokens = 128_000;
   record.offers![0].reasoning_efforts = ["low", "high"];
+  record.offers![0].capabilities.structured_outputs = true;
   record.offers![0].quantization = "fp8";
   record.offers![0].runtime = [{ scope: "offer", throughput_tokens_per_second: { median: 80 }, evidence: record.evidence![0] }];
   record.offers![0].pricing = normalizeMillionPricing({ input: 1, output: 2, cache_read: 0.2 });
@@ -269,7 +271,22 @@ test("source parser accepts real OpenRouter-shaped payload with no endpoint fan-
   assert.equal(collected.status, "ok");
   assert.equal(collected.records.length, 1);
   assert.equal(collected.records[0].offers?.length, 0);
+  assert.equal(collected.replace_previous, true);
   assert.equal(calls.length, 1);
+});
+
+test("OpenRouter preserves previous endpoint offers outside the refresh cap", async () => {
+  const prior = sourceRecord("openrouter", "openai/gpt-4o", "GPT-4o", "https://openrouter.ai/model", "openrouter:provider:gpt-4o");
+  prior.offers![0].evidence[0].source_id = "openrouter";
+  const payload = { data: [{ id: "openai/gpt-4o", name: "GPT-4o", supported_parameters: ["tools"] }] };
+  const collected = await collectOpenRouter({
+    previous: { models: [prior as any] },
+    includeEndpoints: true,
+    endpointCap: 0,
+    fetchImpl: async () => new Response(JSON.stringify(payload), { status: 200 }),
+  });
+  assert.equal(collected.records[0].offers?.length, 1);
+  assert.equal(collected.records[0].offers?.[0].id, "openrouter:provider:gpt-4o");
 });
 
 test("secondary catalog adapters follow their documented pagination", async () => {
@@ -410,7 +427,7 @@ test("source replacement removes stale Vals-only models and canonical definition
   assert.equal(snapshot.benchmarks[0].url, "https://benchlm.example/swe");
 });
 
-test("successful complete source collections replace their previous projection by default", async () => {
+test("complete source collections replace by default while suspicious drops preserve previous data", async () => {
   const collected = await collectSources(undefined, [{
     source_id: "fixture",
     url: "https://fixture.example",
@@ -424,6 +441,19 @@ test("successful complete source collections replace their previous projection b
     collect: async () => ({ ...result("fixture", []), replace_previous: false }),
   }]);
   assert.equal(explicitlyIncremental[0].replace_previous, false);
+
+  const previous = mergeSnapshots(undefined, [result("fixture", [
+    sourceRecord("fixture", "vendor/a", "A", "https://fixture.example", "a"),
+    sourceRecord("fixture", "vendor/b", "B", "https://fixture.example", "b"),
+    sourceRecord("fixture", "vendor/c", "C", "https://fixture.example", "c"),
+  ])], "2026-08-26T00:00:00.000Z");
+  const guarded = await collectSources(previous, [{
+    source_id: "fixture",
+    url: "https://fixture.example",
+    collect: async () => result("fixture", [sourceRecord("fixture", "vendor/a", "A", "https://fixture.example", "a")]),
+  }]);
+  assert.equal(guarded[0].status, "error");
+  assert.match(guarded[0].error ?? "", /previous projection was kept/);
 });
 
 test("schema describes the snapshot and shape guard validates hashless fixtures", () => {

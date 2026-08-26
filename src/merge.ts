@@ -265,7 +265,10 @@ function withoutSource(model: Model, sourceId: string): Model {
     ...model,
     aliases: model.aliases.filter((value) => value.source_id !== sourceId),
     reasoning: model.reasoning.filter((value) => value.source_id !== sourceId),
-    offers: model.offers.filter((value) => !value.evidence.some((item) => item.source_id === sourceId)),
+    offers: model.offers.flatMap((value) => {
+      const remainingEvidence = value.evidence.filter((item) => item.source_id !== sourceId);
+      return remainingEvidence.length > 0 ? [{ ...value, evidence: remainingEvidence }] : [];
+    }),
     benchmarks: model.benchmarks.filter((value) => value.evidence.source_id !== sourceId),
     pricing_observations: model.pricing_observations.filter((value) => value.evidence.source_id !== sourceId),
     runtime_observations: model.runtime_observations.filter((value) => value.evidence.source_id !== sourceId),

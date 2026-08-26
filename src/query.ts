@@ -196,8 +196,12 @@ export function listOffers(snapshot: Snapshot, params: URLSearchParams | Record<
   });
 }
 
-export function listProviders(snapshot: Snapshot): Array<Record<string, unknown>> {
-  return queryIndex(snapshot).providers;
+export function listProviders(snapshot: Snapshot, params: URLSearchParams | Record<string, string | undefined> = {}): Array<Record<string, unknown>> {
+  const scope = parseScope(getter(params)("scope"));
+  const index = queryIndex(snapshot);
+  if (scope === "all") return index.providers;
+  const currentProviderIds = new Set(index.offers.filter((row) => row.inCurrentScope).map((row) => row.providerId));
+  return index.providers.filter((provider) => currentProviderIds.has(String(provider.provider_id).toLowerCase()));
 }
 
 export function listBenchmarks(snapshot: Snapshot, params: URLSearchParams | Record<string, string | undefined> = {}): Array<Record<string, unknown>> {
@@ -342,15 +346,7 @@ function matchesOfferScopedConstraints(row: IndexedModel, constraints: {
   };
 
   if (row.indexedOffers.some(offerMatch)) return true;
-  const onlyModelLevelCapabilities = constraints.capabilities.length > 0
-    && constraints.providers.length === 0
-    && constraints.efforts.length === 0
-    && constraints.quantizations.length === 0
-    && constraints.parameters.length === 0
-    && constraints.minContext === undefined
-    && constraints.hasRuntime === undefined
-    && constraints.hasCachePricing === undefined;
-  return onlyModelLevelCapabilities && constraints.capabilities.every((capability) => row.capabilities.has(capability));
+  return false;
 }
 
 function paginate<T>(

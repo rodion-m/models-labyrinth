@@ -38,6 +38,9 @@ export function estimateWorkloadCost(offer: Offer, profile: WorkloadProfile): Co
   };
   const missing = new Set<string>();
   const components: Record<string, number | null> = {};
+  if (profile.cached_input_ratio > 0 && profile.cache_write_tokens === undefined) {
+    missing.add("cache_write_tokens");
+  }
 
   const add = (dimension: string, units: number, required: boolean) => {
     if (units <= 0) return;

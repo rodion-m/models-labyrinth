@@ -12,6 +12,16 @@ export async function collectSources(
   return Promise.all(adapters.map(async (adapter) => {
     try {
       const result = await adapter.collect({ previous, fetchImpl });
+      const previousCount = previous?.sources.find((source) => source.source_id === adapter.source_id)?.record_count ?? 0;
+      if (result.status === "ok" && previousCount > 0 && result.records.length < previousCount * 0.5) {
+        return {
+          ...result,
+          status: "error" as const,
+          records: [],
+          replace_previous: false,
+          error: `source record count dropped from ${previousCount} to ${result.records.length}; previous projection was kept`,
+        };
+      }
       return result.status === "ok" && result.replace_previous === undefined
         ? { ...result, replace_previous: true }
         : result;
