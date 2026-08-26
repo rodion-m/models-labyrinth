@@ -1,10 +1,11 @@
 #!/usr/bin/env node
 
-import { mkdir, rename, rm, writeFile } from "node:fs/promises";
+import { access, mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
 export const DEFAULT_BASE = "https://rodion-m.github.io/models-labyrinth/api/v1";
+const MANIFEST_FILE = "bundle.json";
 
 export function parseArgs(argv) {
   const options = { base: DEFAULT_BASE, out: undefined };
@@ -23,7 +24,7 @@ export function parseArgs(argv) {
 }
 
 export function validateBundle(health, schema, snapshot) {
-  if (!health || health.status !== "ok") throw new Error("catalog health is not ok");
+  validateHealth(health);
   if (!schema || typeof schema !== "object" || !schema.$defs) throw new Error("schema is not a Models Labyrinth JSON Schema");
   if (!snapshot || typeof snapshot !== "object") throw new Error("snapshot is not an object");
   if (!Array.isArray(snapshot.models) || !Array.isArray(snapshot.sources) || !Array.isArray(snapshot.benchmarks)) {
@@ -43,8 +44,13 @@ export function validateBundle(health, schema, snapshot) {
   };
 }
 
-async function fetchJson(url, timeoutMs = 120_000) {
-  const response = await fetch(url, { signal: AbortSignal.timeout(timeoutMs), headers: { accept: "application/json" } });
+function validateHealth(health) {
+  if (!health || health.status !== "ok") throw new Error("catalog health is not ok");
+  if (!health.content_hash || !health.schema_version) throw new Error("catalog health identity is incomplete");
+}
+
+async function fetchJson(url, fetchImpl = fetch, timeoutMs = 120_000) {
+  const response = await fetchImpl(url, { signal: AbortSignal.timeout(timeoutMs), headers: { accept: "application/json" } });
   if (!response.ok) throw new Error(`${url} returned HTTP ${response.status}`);
   const text = await response.text();
   try {
@@ -64,12 +70,30 @@ async function writeAtomic(path, contents) {
   }
 }
 
-export async function download({ base, out }) {
+async function reusableBundle(outputDirectory, health) {
+  try {
+    const manifest = JSON.parse(await readFile(resolve(outputDirectory, MANIFEST_FILE), "utf8"));
+    if (manifest.content_hash !== health.content_hash || manifest.schema_version !== health.schema_version) return undefined;
+    await Promise.all([
+      access(resolve(outputDirectory, "schema.json")),
+      access(resolve(outputDirectory, "snapshot.json")),
+    ]);
+    return manifest;
+  } catch {
+    return undefined;
+  }
+}
+
+export async function download({ base, out, fetchImpl = fetch }) {
   const outputDirectory = resolve(out);
-  const [healthResult, schemaResult, snapshotResult] = await Promise.all([
-    fetchJson(`${base}/health.json`),
-    fetchJson(`${base}/schema.json`),
-    fetchJson(`${base}/snapshot.json`),
+  const healthResult = await fetchJson(`${base}/health.json`, fetchImpl);
+  validateHealth(healthResult.value);
+  const cached = await reusableBundle(outputDirectory, healthResult.value);
+  if (cached) return { ...cached, reused: true, output_directory: outputDirectory };
+
+  const [schemaResult, snapshotResult] = await Promise.all([
+    fetchJson(`${base}/schema.json`, fetchImpl),
+    fetchJson(`${base}/snapshot.json`, fetchImpl),
   ]);
   const summary = validateBundle(healthResult.value, schemaResult.value, snapshotResult.value);
   await mkdir(outputDirectory, { recursive: true });
@@ -77,7 +101,8 @@ export async function download({ base, out }) {
     writeAtomic(resolve(outputDirectory, "schema.json"), `${schemaResult.text.trimEnd()}\n`),
     writeAtomic(resolve(outputDirectory, "snapshot.json"), `${snapshotResult.text.trimEnd()}\n`),
   ]);
-  return { ...summary, output_directory: outputDirectory };
+  await writeAtomic(resolve(outputDirectory, MANIFEST_FILE), `${JSON.stringify(summary, null, 2)}\n`);
+  return { ...summary, reused: false, output_directory: outputDirectory };
 }
 
 function usage() {
