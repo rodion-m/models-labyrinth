@@ -43,7 +43,7 @@ export function listModels(snapshot: Snapshot, params: URLSearchParams | Record<
     if (efforts.length > 0 && !efforts.some((effort) => row.efforts.has(effort))) return false;
     if (quantizations.length > 0 && !quantizations.some((quantization) => row.quantizations.has(quantization))) return false;
     if (sources.length > 0 && !sources.some((source) => row.sources.has(source))) return false;
-    if (benchmark && ![...row.benchmarks].some((value) => value === benchmark || value.includes(benchmark))) return false;
+    if (benchmark && ![...row.benchmarks, ...row.benchmarkAliases].some((value) => value === benchmark || value.includes(benchmark))) return false;
     if (openWeights !== undefined && row.model.open_weights !== openWeights) return false;
     if (minContext !== undefined && row.maxContext < minContext) return false;
     return true;
@@ -133,8 +133,14 @@ export function listProviders(snapshot: Snapshot): Array<Record<string, unknown>
   return queryIndex(snapshot).providers;
 }
 
-export function listBenchmarks(snapshot: Snapshot): Array<Record<string, unknown>> {
-  return queryIndex(snapshot).benchmarks;
+export function listBenchmarks(snapshot: Snapshot, params: URLSearchParams | Record<string, string | undefined> = {}): Array<Record<string, unknown>> {
+  const kinds = valuesFor(params, "kind");
+  const q = (params instanceof URLSearchParams ? params.get("q") ?? undefined : params.q)?.toLowerCase();
+  return queryIndex(snapshot).benchmarks.filter((row) => {
+    if (kinds.length > 0 && !kinds.includes(String(row.kind).toLowerCase())) return false;
+    if (q && ![row.id, ...(Array.isArray(row.aliases) ? row.aliases : [])].some((value) => String(value).toLowerCase().includes(q))) return false;
+    return true;
+  });
 }
 
 export function listProfiles(): WorkloadProfile[] {

@@ -7,7 +7,7 @@ import { clearSnapshotCache, loadSnapshot } from "../src/db.js";
 import { canonicalModelId, splitOpenRouterVariant } from "../src/identity.js";
 import { normalizeMillionPricing, normalizeOpenRouterPricing, normalizePortkeyPricing } from "../src/price.js";
 import { mergeSnapshots } from "../src/merge.js";
-import { listFacets, listModels, listOffers } from "../src/query.js";
+import { listBenchmarks, listFacets, listModels, listOffers } from "../src/query.js";
 import { refreshDatabase } from "../src/refresh.js";
 import { writeSnapshotAtomic } from "../src/storage.js";
 import { MODELS_DB_SCHEMA, assertSnapshotShape } from "../src/schema.js";
@@ -42,6 +42,55 @@ test("merge keeps one model and one offer while retaining source observations", 
   assert.equal(snapshot.models[0].offers.length, 1);
   assert.equal(snapshot.models[0].offers[0].pricing.length, 2);
   assert.equal(snapshot.models[0].evidence.length, 2);
+});
+
+test("benchmark aliases share one canonical identity without losing source provenance", () => {
+  const record = sourceRecord("benchlm", "openai/gpt-4o", "GPT-4o", "https://benchlm.example", "offer");
+  record.benchmarks = [
+    { benchmark_id: "agentic.terminalBench21", value: 42, evidence: record.evidence![0] },
+    { benchmark_id: "coding.terminalBench21", value: 42, evidence: record.evidence![0] },
+  ];
+  const snapshot = mergeSnapshots(undefined, [result("benchlm", [record])], "2026-08-26T00:00:00.000Z");
+  assert.equal(snapshot.models[0].benchmarks.length, 1);
+  assert.equal(snapshot.models[0].benchmarks[0].benchmark_id, "coding.terminalBench21");
+  assert.equal(snapshot.models[0].benchmarks[0].kind, "benchmark");
+  assert.deepEqual(snapshot.models[0].benchmarks[0].source_benchmark_ids, ["agentic.terminalBench21", "coding.terminalBench21"]);
+  assert.equal(listBenchmarks(snapshot).length, 1);
+  assert.deepEqual(listBenchmarks(snapshot)[0].aliases, ["agentic.terminalBench21"]);
+  assert.equal(listModels(snapshot, new URLSearchParams("benchmark=agentic.terminalBench21")).data.length, 1);
+});
+
+test("a refreshed raw benchmark replaces its old value while distinct source observations remain", () => {
+  const oldRecord = sourceRecord("benchlm", "openai/gpt-4o", "GPT-4o", "https://benchlm.example", "offer");
+  oldRecord.benchmarks = [{ benchmark_id: "coding.terminalBench21", value: 40, evidence: oldRecord.evidence![0] }];
+  const previous = mergeSnapshots(undefined, [result("benchlm", [oldRecord])], "2026-08-26T00:00:00.000Z");
+  const newRecord = sourceRecord("benchlm", "openai/gpt-4o", "GPT-4o", "https://benchlm.example", "offer");
+  newRecord.benchmarks = [{ benchmark_id: "coding.terminalBench21", value: 42, evidence: { ...newRecord.evidence![0], fetched_at: "2026-08-26T12:00:00.000Z" } }];
+  const current = mergeSnapshots(previous, [result("benchlm", [newRecord])], "2026-08-26T12:00:00.000Z");
+  assert.deepEqual(current.models[0].benchmarks.map((value) => value.value), [42]);
+});
+
+test("derived catalog scores are explicitly classified as aggregates", () => {
+  const record = sourceRecord("benchlm", "openai/gpt-4o", "GPT-4o", "https://benchlm.example", "offer");
+  record.benchmarks = [{ benchmark_id: "score.overallScore", value: 77, evidence: record.evidence![0] }];
+  const snapshot = mergeSnapshots(undefined, [result("benchlm", [record])], "2026-08-26T00:00:00.000Z");
+  assert.equal(snapshot.models[0].benchmarks[0].kind, "aggregate");
+  assert.equal(listBenchmarks(snapshot, new URLSearchParams("kind=benchmark")).length, 0);
+  assert.equal(listBenchmarks(snapshot, new URLSearchParams("kind=aggregate")).length, 1);
+});
+
+test("multiple metrics share a benchmark identity but remain distinct observations", () => {
+  const record = sourceRecord("benchlm", "openai/gpt-4o", "GPT-4o", "https://benchlm.example", "offer");
+  record.benchmarks = [
+    { benchmark_id: "agentic.toolathlonVerified", value: 50, evidence: record.evidence![0] },
+    { benchmark_id: "agentic.toolathlonVerifiedPass3", value: 70, evidence: record.evidence![0] },
+  ];
+  const snapshot = mergeSnapshots(undefined, [result("benchlm", [record])], "2026-08-26T00:00:00.000Z");
+  assert.deepEqual(snapshot.models[0].benchmarks.map((value) => [value.benchmark_id, value.metric]), [
+    ["agentic.toolathlonVerified", undefined],
+    ["agentic.toolathlonVerified", "pass_at_3"],
+  ]);
+  assert.equal(listBenchmarks(snapshot).length, 1);
 });
 
 test("query filters nested offers, paginates and computes a transparent profile estimate", () => {

@@ -11,6 +11,7 @@ export interface IndexedModel {
   quantizations: ReadonlySet<string>;
   sources: ReadonlySet<string>;
   benchmarks: ReadonlySet<string>;
+  benchmarkAliases: ReadonlySet<string>;
   maxContext: number;
   latest: string;
 }
@@ -112,6 +113,7 @@ function indexModel(model: Model): IndexedModel {
   const quantizations = new Set<string>();
   const sources = new Set<string>();
   const benchmarks = new Set<string>();
+  const benchmarkAliases = new Set<string>();
   for (const offer of model.offers) {
     providers.add(offer.provider_id.toLowerCase());
     for (const effort of offer.reasoning_efforts) efforts.add(effort.toLowerCase());
@@ -121,7 +123,10 @@ function indexModel(model: Model): IndexedModel {
     for (const evidence of offer.evidence) sources.add(evidence.source_id.toLowerCase());
   }
   for (const evidence of [...model.evidence, ...model.benchmarks.map((item) => item.evidence)]) sources.add(evidence.source_id.toLowerCase());
-  for (const benchmark of model.benchmarks) benchmarks.add(benchmark.benchmark_id.toLowerCase());
+  for (const benchmark of model.benchmarks) {
+    benchmarks.add(benchmark.benchmark_id.toLowerCase());
+    for (const alias of benchmark.source_benchmark_ids ?? []) benchmarkAliases.add(alias.toLowerCase());
+  }
   const search = [model.id, model.name, ...model.aliases.map((value) => value.id)].join(" ").toLowerCase();
   const modalities = new Set([
     ...model.modalities.input.map((value) => `input:${value.toLowerCase()}`),
@@ -138,6 +143,7 @@ function indexModel(model: Model): IndexedModel {
     quantizations,
     sources,
     benchmarks,
+    benchmarkAliases,
     maxContext,
     latest: model.evidence.map((value) => value.fetched_at).sort().at(-1) ?? "",
   };
@@ -176,12 +182,14 @@ function buildProviders(models: IndexedModel[]): Array<Record<string, unknown>> 
 }
 
 function buildBenchmarks(models: IndexedModel[], snapshot: Snapshot): Array<Record<string, unknown>> {
-  const counts = new Map<string, { observations: number; models: Set<string>; sources: Set<string> }>();
+  const counts = new Map<string, { observations: number; models: Set<string>; sources: Set<string>; aliases: Set<string>; kinds: Set<string> }>();
   for (const row of models) for (const observation of row.model.benchmarks) {
-    const current = counts.get(observation.benchmark_id) ?? { observations: 0, models: new Set<string>(), sources: new Set<string>() };
+    const current = counts.get(observation.benchmark_id) ?? { observations: 0, models: new Set<string>(), sources: new Set<string>(), aliases: new Set<string>(), kinds: new Set<string>() };
     current.observations += 1;
     current.models.add(row.model.id);
     current.sources.add(observation.evidence.source_id);
+    for (const alias of observation.source_benchmark_ids ?? []) if (alias !== observation.benchmark_id) current.aliases.add(alias);
+    if (observation.kind) current.kinds.add(observation.kind);
     counts.set(observation.benchmark_id, current);
   }
   const definitions = new Map(snapshot.benchmarks.map((value) => [value.id, value]));
@@ -190,6 +198,8 @@ function buildBenchmarks(models: IndexedModel[], snapshot: Snapshot): Array<Reco
     ...(definitions.get(id) ? { definition: definitions.get(id) } : {}),
     observation_count: value.observations,
     model_count: value.models.size,
+    kind: value.kinds.size === 1 ? [...value.kinds][0] : "benchmark",
+    aliases: [...new Set([...(definitions.get(id)?.aliases ?? []), ...value.aliases])].sort(),
     sources: [...value.sources].sort(),
     independent_sources: [...value.sources].filter((source) => source !== "benchlm" && source !== "cloudprice" && source !== "benchgecko").sort(),
   })).sort((a, b) => String(a.id).localeCompare(String(b.id)));

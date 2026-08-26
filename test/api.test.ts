@@ -3,6 +3,7 @@ import test from "node:test";
 import modelsHandler from "../api/v1/models.js";
 import offersHandler from "../api/v1/offers.js";
 import facetsHandler from "../api/v1/facets.js";
+import benchmarksHandler from "../api/v1/benchmarks.js";
 import schemaHandler from "../api/v1/schema.js";
 import snapshotHandler from "../api/v1/snapshot.js";
 import type { ApiResponse } from "../src/api.js";
@@ -28,6 +29,15 @@ test("selection endpoints expose compact model summaries and discoverable facets
   assert.equal(facetsResponse.statusCode, 200);
   assert.ok(Array.isArray((facetsResponse.body as any).data.capabilities));
   assert.ok(Array.isArray((facetsResponse.body as any).data.reasoning_efforts));
+});
+
+test("benchmark catalog filters canonical entries by kind and alias query", () => {
+  const response = fakeResponse();
+  benchmarksHandler({ url: "/api/v1/benchmarks?kind=benchmark&q=terminal" }, response);
+  assert.equal(response.statusCode, 200);
+  assert.ok((response.body as any).data.length > 0);
+  assert.ok((response.body as any).data.every((row: any) => row.kind === "benchmark"));
+  assert.ok((response.body as any).data.every((row: any) => [row.id, ...(row.aliases ?? [])].some((value: string) => value.toLowerCase().includes("terminal"))));
 });
 
 test("offers handler reports invalid custom workloads as client errors", () => {

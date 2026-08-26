@@ -1,5 +1,6 @@
 export type SourceStatusKind = "ok" | "error" | "skipped";
 export type EvidenceStatus = "observed" | "derived" | "stale";
+export type BenchmarkKind = "benchmark" | "index" | "aggregate" | "claim";
 export type PriceUnit =
   | "token"
   | "million_tokens"
@@ -41,7 +42,10 @@ export interface PricePoint {
 
 export interface BenchmarkObservation {
   benchmark_id: string;
+  source_benchmark_ids?: string[];
+  kind?: BenchmarkKind;
   value: number;
+  metric?: string;
   unit?: string;
   variant?: string;
   effort?: string;
@@ -53,6 +57,8 @@ export interface BenchmarkObservation {
 
 export interface BenchmarkDefinition {
   id: string;
+  aliases?: string[];
+  kind?: BenchmarkKind;
   name?: string;
   category?: string;
   description?: string;

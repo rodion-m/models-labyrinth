@@ -66,7 +66,10 @@ export const MODELS_DB_SCHEMA = {
       required: ["benchmark_id", "value", "evidence"],
       properties: {
         benchmark_id: { type: "string" },
+        source_benchmark_ids: { type: "array", items: { type: "string" }, uniqueItems: true },
+        kind: { enum: ["benchmark", "index", "aggregate", "claim"] },
         value: { type: "number" },
+        metric: { type: "string" },
         unit: { type: "string" },
         variant: { type: "string" },
         effort: { type: "string" },
@@ -147,7 +150,7 @@ export const MODELS_DB_SCHEMA = {
     benchmark_definition: {
       type: "object",
       required: ["id", "evidence"],
-      properties: { id: { type: "string" }, name: { type: "string" }, category: { type: "string" }, description: { type: "string" }, year: { type: "integer" }, url: { type: "string" }, evidence: { $ref: "#/$defs/evidence" } },
+      properties: { id: { type: "string" }, aliases: { type: "array", items: { type: "string" }, uniqueItems: true }, kind: { enum: ["benchmark", "index", "aggregate", "claim"] }, name: { type: "string" }, category: { type: "string" }, description: { type: "string" }, year: { type: "integer" }, url: { type: "string" }, evidence: { $ref: "#/$defs/evidence" } },
       additionalProperties: true,
     },
     workload_profile: {

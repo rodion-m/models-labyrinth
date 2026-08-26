@@ -74,6 +74,16 @@ Source-specific conflicts are retained as evidence. A normalized canonical
 field is a convenient current view, not a claim that all sources measured the
 same thing.
 
+Benchmark identity follows the same rule as model identity. A benchmark has
+one canonical `benchmark_id`; upstream paths are retained in
+`source_benchmark_ids`, and each source's value remains a separate observation.
+Named multi-benchmark indices, source-defined aggregate scores, and opaque
+provider results are marked as `index`, `aggregate`, and `claim` rather than
+being presented as primary benchmarks.
+Aliases are merged only when they refer to the same benchmark revision; similar
+families and revised datasets remain separate. `/benchmarks` groups coverage by
+canonical identity and accepts `kind` and `q` filters.
+
 The practice case adds a second, optional observation axis without duplicating
 models: `measurements[]` are keyed by `offer_id`, `workload_profile_id`, and
 `reasoning_config`. They are populated only from a real upstream feed. This

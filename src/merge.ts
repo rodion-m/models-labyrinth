@@ -2,6 +2,7 @@ import { contentHash, stableValue } from "./hash.js";
 import { SCHEMA_VERSION, WORKLOAD_PROFILES } from "./constants.js";
 import type { BenchmarkDefinition, Evidence, Model, Offer, Snapshot, SourceRecord, SourceResult } from "./types.js";
 import { asModelRecord } from "./sources/common.js";
+import { canonicalizeBenchmarkDefinition, canonicalizeBenchmarkObservation } from "./benchmark-registry.js";
 
 const CONFIDENCE_RANK = { unresolved: 0, alias: 1, exact: 2 } as const;
 
@@ -23,7 +24,10 @@ export function mergeSnapshots(previous: Snapshot | undefined, results: SourceRe
   const modelMap = new Map<string, Model>();
   for (const model of previous?.models ?? []) modelMap.set(model.id, clone(model));
   const benchmarkMap = new Map<string, BenchmarkDefinition>();
-  for (const benchmark of previous?.benchmarks ?? []) benchmarkMap.set(benchmark.id, clone(benchmark));
+  for (const rawBenchmark of previous?.benchmarks ?? []) {
+    const benchmark = canonicalizeBenchmarkDefinition(clone(rawBenchmark));
+    benchmarkMap.set(benchmark.id, benchmark);
+  }
 
   for (const result of results) {
     if (result.status !== "ok") continue;
@@ -32,11 +36,13 @@ export function mergeSnapshots(previous: Snapshot | undefined, results: SourceRe
       const current = modelMap.get(incoming.id);
       modelMap.set(incoming.id, current ? mergeModel(current, incoming) : normalizeModel(incoming));
     }
-    for (const benchmark of result.benchmark_definitions ?? []) {
+    for (const rawBenchmark of result.benchmark_definitions ?? []) {
+      const benchmark = canonicalizeBenchmarkDefinition(rawBenchmark);
       const current = benchmarkMap.get(benchmark.id);
       benchmarkMap.set(benchmark.id, current ? {
         ...current,
         ...benchmark,
+        aliases: [...new Set([...(current.aliases ?? []), ...(benchmark.aliases ?? [])])].sort(),
         evidence: mergeSingleEvidence(current.evidence, benchmark.evidence),
       } : benchmark);
     }
@@ -95,7 +101,7 @@ function normalizeModel(model: Model): Model {
     capabilities: sortObject(model.capabilities),
     reasoning: dedupBy(model.reasoning, (value) => `${value.source_id}:${value.evidence.url}`).sort((a, b) => a.source_id.localeCompare(b.source_id)),
     offers: dedupBy(model.offers.map(normalizeOffer), (value) => value.id).sort(compareById),
-    benchmarks: dedupBy(model.benchmarks, benchmarkKey).sort((a, b) => benchmarkKey(a).localeCompare(benchmarkKey(b))),
+    benchmarks: mergeBenchmarkObservations(model.benchmarks).sort((a, b) => benchmarkKey(a).localeCompare(benchmarkKey(b))),
     pricing_observations: dedupBy(model.pricing_observations, observationKey).sort((a, b) => observationKey(a).localeCompare(observationKey(b))),
     runtime_observations: dedupBy(model.runtime_observations, runtimeKey).sort((a, b) => runtimeKey(a).localeCompare(runtimeKey(b))),
     measurements: dedupBy(model.measurements, measurementKey).sort((a, b) => measurementKey(a).localeCompare(measurementKey(b))),
@@ -119,7 +125,7 @@ function mergeModel(current: Model, incoming: Model): Model {
     capabilities: mergeCapabilities(current.capabilities, incoming.capabilities),
     reasoning: [...current.reasoning, ...incoming.reasoning],
     offers: mergeOffers(current.offers, incoming.offers),
-    benchmarks: mergeByKey(current.benchmarks, incoming.benchmarks, benchmarkKey),
+    benchmarks: mergeBenchmarkSets(current.benchmarks, incoming.benchmarks),
     pricing_observations: mergeByKey(current.pricing_observations, incoming.pricing_observations, observationKey),
     runtime_observations: mergeByKey(current.runtime_observations, incoming.runtime_observations, runtimeKey),
     measurements: mergeByKey(current.measurements, incoming.measurements, measurementKey),
@@ -181,7 +187,36 @@ function offerKey(value: Offer): string {
 }
 
 function benchmarkKey(value: Model["benchmarks"][number]): string {
-  return `${value.evidence.source_id}:${value.benchmark_id}:${value.variant ?? ""}:${value.effort ?? ""}`;
+  return `${value.evidence.source_id}:${value.benchmark_id}:${value.variant ?? ""}:${value.effort ?? ""}:${value.metric ?? ""}:${value.unit ?? ""}:${value.value}`;
+}
+
+function mergeBenchmarkObservations(values: Model["benchmarks"]): Model["benchmarks"] {
+  const map = new Map<string, Model["benchmarks"][number]>();
+  for (const rawValue of values) {
+    const value = canonicalizeBenchmarkObservation(rawValue);
+    const key = benchmarkKey(value);
+    const current = map.get(key);
+    map.set(key, current ? {
+      ...current,
+      source_benchmark_ids: [...new Set([...(current.source_benchmark_ids ?? []), ...(value.source_benchmark_ids ?? [])])].sort(),
+    } : value);
+  }
+  return [...map.values()];
+}
+
+function mergeBenchmarkSets(current: Model["benchmarks"], incoming: Model["benchmarks"]): Model["benchmarks"] {
+  const normalizedIncoming = incoming.map(canonicalizeBenchmarkObservation);
+  const replacedRawKeys = new Set(normalizedIncoming.flatMap((value) => rawBenchmarkKeys(value)));
+  const retained = current
+    .map(canonicalizeBenchmarkObservation)
+    .filter((value) => !rawBenchmarkKeys(value).some((key) => replacedRawKeys.has(key)));
+  return mergeBenchmarkObservations([...retained, ...normalizedIncoming]);
+}
+
+function rawBenchmarkKeys(value: Model["benchmarks"][number]): string[] {
+  return (value.source_benchmark_ids ?? [value.benchmark_id]).map((rawId) =>
+    `${value.evidence.source_id}:${rawId}:${value.variant ?? ""}:${value.effort ?? ""}:${value.metric ?? ""}`
+  );
 }
 
 function observationKey(value: Model["pricing_observations"][number]): string {

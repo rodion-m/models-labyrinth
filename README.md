@@ -99,7 +99,7 @@ All collection endpoints return an envelope with `data` and `meta`:
 - `GET /api/v1/offers?capability=structured_outputs&profile=custom&input_tokens=10000&output_tokens=300&cached_input_ratio=0.5&sort=cost`
 - `GET /api/v1/facets` — discover current capability, effort, quantization, modality, and source values.
 - `GET /api/v1/providers`
-- `GET /api/v1/benchmarks`
+- `GET /api/v1/benchmarks?kind=benchmark&q=terminal` — canonical benchmark catalog; `kind` accepts `benchmark`, `index`, `aggregate`, or `claim`, while `q` also matches upstream aliases.
 - `GET /api/v1/profiles`
 - `GET /api/v1/health`
 - `GET /api/v1/schema` — JSON Schema for the complete `models_db.json`.
