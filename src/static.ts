@@ -5,7 +5,6 @@ import { MODELS_DB_SCHEMA } from "./schema.js";
 import { queryIndex } from "./query-index.js";
 import { health, listBenchmarkObservations, listBenchmarks, listFacets, listOffers, listProviders, listProfiles } from "./query.js";
 import { buildRuntimeQueryArtifact } from "./runtime-artifact.js";
-import { recencyCutoffDate } from "./scope.js";
 import type { Snapshot } from "./types.js";
 import { stableValue } from "./hash.js";
 
@@ -26,16 +25,15 @@ export async function buildStatic(snapshot: Snapshot, outputRoot = resolve(proce
   await writeJson(join(apiRoot, "offers.json"), listOffers(snapshot, new URLSearchParams("limit=100")));
   await writeJson(join(apiRoot, "benchmark-observations.json"), listBenchmarkObservations(snapshot, new URLSearchParams("limit=100")));
   const allIndex = snapshot.models.map((model) => ({ id: model.id, name: model.name, file: `models/${fileKey(model.id)}.json` }));
-  const currentIds = new Set(queryIndex(snapshot).models.filter((row) => row.inCurrentScope).map((row) => row.model.id));
-  const scopedIndex = allIndex.filter((row) => currentIds.has(row.id));
+  const availableIds = new Set(queryIndex(snapshot).models.filter((row) => row.inAvailableScope).map((row) => row.model.id));
+  const scopedIndex = allIndex.filter((row) => availableIds.has(row.id));
   await writeJson(join(apiRoot, "models.json"), {
     data: scopedIndex,
     meta: {
       total: scopedIndex.length,
       updated_at: snapshot.generated_at,
       schema_version: snapshot.schema_version,
-      scope: "current",
-      recency_cutoff: recencyCutoffDate(snapshot.generated_at),
+      scope: "available",
       excluded_count: allIndex.length - scopedIndex.length,
     },
   });

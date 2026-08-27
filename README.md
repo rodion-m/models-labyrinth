@@ -15,7 +15,10 @@ when the comparison cannot be expressed efficiently through API filters.
 
 The skill keeps model quality, provider behavior, quantization, price, and
 evidence confidence separate until the user's task makes their trade-offs
-explicit. It does not run models or invent a universal leaderboard score.
+explicit. Its normal mode is `competitive`; `frontier` is reserved for an
+explicit maximum-quality request. API `available` scope is only a deployability
+inventory, and `all` is almost exclusively for historical or audit work. It
+does not run models or invent a universal leaderboard score.
 When a ranked answer is useful, its offline selector can calculate a
 task-relative score from exact comparison lanes and user-visible weights. The
 result always exposes observed percentile quality, benchmark coverage,
@@ -114,8 +117,7 @@ All collection endpoints return an envelope with `data` and `meta`:
     "has_more": false,
     "updated_at": "...",
     "schema_version": "1.0",
-    "scope": "current",
-    "recency_cutoff": "...",
+    "scope": "available",
     "excluded_count": 0
   }
 }
@@ -127,21 +129,21 @@ All collection endpoints return an envelope with `data` and `meta`:
 - `GET /api/v1/models/:id`
 - `GET /api/v1/offers?model=openai/gpt-5&provider=openrouter&capability=tools&has_runtime=true&profile=rag-long-prefix&sort=cost`
 - `GET /api/v1/offers?capability=structured_outputs&profile=custom&input_tokens=10000&output_tokens=300&cached_input_ratio=0.5&cache_write_tokens=4000&reasoning_tokens=200&sort=cost`
-- `GET /api/v1/facets` — discover current capability, effort, quantization, modality, and source values.
+- `GET /api/v1/facets` — discover available capability, effort, quantization, modality, and source values.
 - `GET /api/v1/providers`
 - `GET /api/v1/benchmarks?kind=benchmark&q=terminal` — canonical benchmark catalog; `kind` accepts `benchmark`, `index`, `aggregate`, or `claim`, while `q` also matches upstream aliases.
-- `GET /api/v1/benchmark-observations?benchmark=coding.terminalBench21&effort=high` — canonical paginated observations with a stable `lane_id`. Defaults to `scope=current`. `sort=score` is allowed only inside one comparison lane.
+- `GET /api/v1/benchmark-observations?benchmark=coding.terminalBench21&effort=high` — canonical paginated observations with a stable `lane_id`. Defaults to `scope=available`. `sort=score` is allowed only inside one comparison lane.
 - `GET /api/v1/profiles`
 - `GET /api/v1/health`
 - `GET /api/v1/schema` — JSON Schema for the complete `models_db.json`.
 - `GET /api/v1/snapshot` — redirect to the full static `snapshot.json`.
 
-`/models`, `/offers`, `/facets`, and `/benchmark-observations` default to `scope=current`: canonical models
-with at least one active offer, excluding unresolved identities and releases
-older than the documented 24-month recency window measured from
-`generated_at`. An unknown release date is allowed only when an active offer
-has fresh evidence. `scope=all` returns the complete catalog. Responses include
-`meta.scope`, `meta.recency_cutoff`, and `meta.excluded_count`. `sort=updated`
+`/models`, `/offers`, `/facets`, and `/benchmark-observations` default to
+`scope=available`: canonical models with at least one active, unexpired offer
+whose evidence is no older than 36 hours at `generated_at`. Release age is not
+an availability signal. `scope=all` returns the complete historical and
+unresolved catalog. Responses include `meta.scope` and `meta.excluded_count`.
+`sort=updated`
 orders by evidence freshness; `sort=released` orders by `release_date`.
 Unknown enum values, malformed booleans/numbers/dates, unsupported sort keys,
 and incompatible argument combinations return HTTP 400 with `error.parameter`.

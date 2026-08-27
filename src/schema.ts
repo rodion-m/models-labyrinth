@@ -63,7 +63,7 @@ export const MODELS_DB_SCHEMA = {
     },
     api_meta: {
       type: "object",
-      description: "Query envelope metadata. scope=current is the default selection catalog; scope=all is the complete catalog.",
+      description: "Query envelope metadata. scope=available is the default deployable catalog; scope=all is the complete historical catalog.",
       properties: {
         total: { type: "integer", minimum: 0 },
         limit: { type: "integer", minimum: 1 },
@@ -71,8 +71,7 @@ export const MODELS_DB_SCHEMA = {
         has_more: { type: "boolean" },
         updated_at: { type: "string", format: "date-time" },
         schema_version: { type: "string" },
-        scope: { enum: ["current", "all"] },
-        recency_cutoff: { type: "string" },
+        scope: { enum: ["available", "all"] },
         excluded_count: { type: "integer", minimum: 0 },
       },
       additionalProperties: true,
@@ -126,6 +125,7 @@ export const MODELS_DB_SCHEMA = {
         provider_model_id: { type: "string" },
         variant: { type: "string" },
         status: { enum: ["active", "absent"] },
+        expires_at: { type: "string", description: "Upstream expiration date or timestamp for this offer." },
         quantization: { type: "string" },
         context_tokens: { type: "integer", minimum: 0 },
         max_output_tokens: { type: "integer", minimum: 0 },

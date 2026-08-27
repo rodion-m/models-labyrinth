@@ -1,16 +1,16 @@
 # Benchmark decision playbook
 
-Read this reference when choosing quality evidence for a general workload. Confirm current canonical IDs through `/benchmarks?kind=benchmark&q=<name>`; benchmark names are a reading order, not a fixed allowlist.
+Read this reference when choosing quality evidence for a general workload. Apply the benchmark status map named in `SKILL.md` first. Confirm current canonical IDs through `/benchmarks?kind=benchmark&q=<name>`; benchmark names are a reading order, not a fixed allowlist.
 
 ## Evidence order
 
-Prefer a current benchmark that reproduces the task, then a close task-family benchmark, then an older coverage anchor. Never optimize a proxy past its scope: GPQA is not an agent benchmark, IFEval is not schema reliability, ScreenSpot is not computer-use success, LiveCodeBench is not repository maintenance, and advertised context is not retrieval quality.
+Prefer a primary-current benchmark that reproduces the task, then a qualified or task-specific current benchmark. Use a coverage anchor only when direct current evidence is absent, and never silently substitute legacy evidence. Never optimize a proxy past its scope: GPQA is not an agent benchmark, IFEval is not schema reliability, ScreenSpot is not computer-use success, LiveCodeBench is not repository maintenance, and advertised context is not retrieval quality.
 
 | Workload | Quality evidence to prioritize | Conditions to preserve |
 | --- | --- | --- |
-| Production repository work | FrontierCode 1.1, DeepSWE v1.1, SWE-Rebench, FrontierSWE; Terminal-Bench 3 for terminal-heavy work | Repository revision, scaffold, tools, timeout, verifier; SWE-bench Verified/Pro and Terminal-Bench 2.1 are coverage anchors |
+| Production repository work | DeepSWE v1.1 and SWE-rebench v2; FrontierCode 1.1 for mergeability; Terminal-Bench 3.0 only for terminal-heavy work | Repository revision, scaffold, tools, timeout, verifier, effort, cost, and run statistic; FrontierCode is private/source-run; SWE-bench Pro is only a disputed coverage anchor and SWE-bench Verified is legacy |
 | General current reasoning, coding, and agentic coding | LiveBench release task lanes, when the task matches one of its subtasks; use its coding and agentic-coding rows separately | Release, exact subtask, effort, evaluator, and model configuration; LiveBench category/overall rows are derived aggregates, not independent tasks |
-| Algorithms or isolated code | LiveCodeBench v6/Pro, SciCode, ProgramBench; Codeforces only for matching contest work | Compiler/runtime, pass@k, cutoff, effort, token budget, output price |
+| Algorithms or isolated code | LiveCodeBench v6/Pro; BigCodeBench only for dependency-rich function work; SciCode only for scientific code; ProgramBench only for black-box reimplementation | Compiler/runtime, pass@k, cutoff, effort, token budget, output price |
 | Tool and MCP workflows | Toolathlon-Verified, MCP-Atlas, τ³-bench; BFCL v4 for call/schema mechanics | Exact tools, service state, parameters, retries, context growth, route uptime and latency |
 | Desktop/mobile computer use | OSWorld 2.0, MobileWorld, WebArena-Verified; ScreenSpot-Pro only for grounding | VM/app release, vision/action interface, state reset, evaluator, task success |
 | Math and abstract reasoning | FrontierMath V2 Tiers 1–3/Tier 4, AIME/HMMT/IMO 2026, ARC-AGI-3, CritPt | Python/tools, effort, token or interaction budget, contest year, answer extractor |
@@ -29,9 +29,19 @@ Do not mix ARC-AGI 1/2/3, Terminal-Bench 2.0/2.1/3, OSWorld/Verified/2.0, Fronti
 
 When no close benchmark exists, say so and lower confidence instead of synthesizing a universal score. Use broad evidence only as a tie-breaker or prior, never as proof of performance on an uncovered workflow. LiveBench evaluation cost/token fields describe the published benchmark run; use offer pricing and workload estimates for deployment economics.
 
+Do not produce benchmark laundry lists. Cite only the two to five current signals
+that represent the user's deliverable and materially affect the recommendation.
+Aider Polyglot, HumanEval, and SWE-bench Verified are not default coding signals;
+their presence in a catalog or search result is not a reason to mention them.
+
 ## Task-fit scoring
 
 Use an aggregate only after hard route constraints leave a meaningful cohort.
+For the default `competitive` mode, apply the closest end-to-end quality lane as
+a floor before price, latency, or popularity enters the comparison; then score
+or Pareto-rank the survivors. For an explicit maximum-quality request, restrict
+the cohort to task-relevant frontier models and do not add cheaper non-frontier
+models. `scope=available` supplies deployable records but defines neither cohort.
 Choose two to five benchmarks that directly represent the deliverable and select
 one exact `lane_id` for each. Give the closest end-to-end benchmark the largest
 weight; use broad knowledge or legacy anchors only as small tie-breakers. Record

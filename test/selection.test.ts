@@ -41,11 +41,12 @@ test("strict query parsing rejects unknown enums, malformed values, and bad sort
   });
 });
 
-test("default scope is current with transparent metadata and scope=all keeps the complete catalog", () => {
-  const current = sourceRecord("models_dev", "openai/gpt-4o", "GPT-4o", "offer-current");
-  current.release_date = "2026-01-01";
+test("default scope is freshly available while scope=all keeps the complete catalog", () => {
+  const available = sourceRecord("models_dev", "openai/gpt-4o", "GPT-4o", "offer-available");
+  available.release_date = "2026-01-01";
   const historical = sourceRecord("models_dev", "openai/gpt-3", "GPT-3", "offer-old");
   historical.release_date = "2020-06-01";
+  historical.offers![0].status = "absent";
   const unresolved = sourceRecord("epoch", "epoch:Mystery", "Mystery", "offer-unresolved");
   unresolved.id = "unresolved/epoch/mystery";
   unresolved.identity_confidence = "unresolved";
@@ -54,14 +55,13 @@ test("default scope is current with transparent metadata and scope=all keeps the
   noOffer.offers = [];
   noOffer.release_date = "2025-06-17";
   const snapshot = mergeSnapshots(undefined, [
-    result("models_dev", [current, historical]),
+    result("models_dev", [available, historical]),
     result("epoch", [unresolved]),
     result("benchlm", [noOffer]),
   ], "2026-08-26T00:00:00.000Z");
 
   const selected = listModels(snapshot, new URLSearchParams("view=summary"));
-  assert.equal(selected.meta.scope, "current");
-  assert.ok(selected.meta.recency_cutoff);
+  assert.equal(selected.meta.scope, "available");
   assert.ok((selected.meta.excluded_count ?? 0) >= 2);
   assert.deepEqual(selected.data.map((row) => row.id), ["openai/gpt-4o"]);
 
@@ -72,35 +72,36 @@ test("default scope is current with transparent metadata and scope=all keeps the
   assert.ok(all.data.some((row) => row.id.startsWith("unresolved/") || row.id === "unresolved/epoch/mystery"));
 
   const facets = listFacets(snapshot);
-  assert.equal(facets.meta.scope, "current");
+  assert.equal(facets.meta.scope, "available");
   const allFacets = listFacets(snapshot, new URLSearchParams("scope=all"));
   assert.equal(allFacets.meta.scope, "all");
   assert.ok((allFacets.capabilities.find((row) => row.value === "tools")?.model_count ?? 0) >= (facets.capabilities.find((row) => row.value === "tools")?.model_count ?? 0));
 
   const offers = listOffers(snapshot, new URLSearchParams());
-  assert.equal(offers.meta.scope, "current");
+  assert.equal(offers.meta.scope, "available");
   assert.ok((offers.meta.excluded_count ?? 0) >= 1);
   assert.equal(listOffers(snapshot, new URLSearchParams("scope=all")).meta.excluded_count, 0);
 
   const status = health(snapshot);
-  assert.equal(status.default_scope, "current");
-  assert.equal(status.current_model_count, 1);
+  assert.equal(status.default_scope, "available");
+  assert.equal(status.available_model_count, 1);
   assert.equal(status.all_model_count, snapshot.models.length);
   assert.equal(status.content_hash, snapshot.content_hash);
 
   const unknownRelease = sourceRecord("models_dev", "vendor/unknown-release", "Unknown release", "unknown-release");
   delete unknownRelease.release_date;
   unknownRelease.evidence![0].fetched_at = "2026-08-26T00:00:00.000Z";
-  unknownRelease.offers![0].evidence[0].fetched_at = "2026-01-01T00:00:00.000Z";
+  unknownRelease.offers![0].evidence[0].fetched_at = "2026-08-26T00:00:00.000Z";
   const unknownSnapshot = mergeSnapshots(undefined, [result("models_dev", [unknownRelease])], "2026-08-26T00:00:00.000Z");
-  assert.equal(listModels(unknownSnapshot, new URLSearchParams("view=summary")).data.length, 0);
+  assert.equal(listModels(unknownSnapshot, new URLSearchParams("view=summary")).data.length, 1);
+  assert.equal(listModels(unknownSnapshot, new URLSearchParams("scope=all&view=summary")).data.length, 1);
 });
 
 test("sort=released orders by release date and released_after/before are explicit filters", () => {
   const older = sourceRecord("models_dev", "openai/gpt-4o", "GPT-4o", "a");
-  older.release_date = "2025-01-01";
-  older.evidence![0].fetched_at = "2026-08-20T00:00:00.000Z";
-  older.offers![0].evidence[0].fetched_at = "2026-08-20T00:00:00.000Z";
+  older.release_date = "2025-10-01";
+  older.evidence![0].fetched_at = "2026-08-25T00:00:00.000Z";
+  older.offers![0].evidence[0].fetched_at = "2026-08-25T00:00:00.000Z";
   const newer = sourceRecord("models_dev", "openai/gpt-5", "GPT-5", "b");
   newer.release_date = "2026-08-01";
   newer.evidence![0].fetched_at = "2026-08-26T00:00:00.000Z";
@@ -111,6 +112,19 @@ test("sort=released orders by release date and released_after/before are explici
   assert.equal(listModels(snapshot, new URLSearchParams("released_after=2026-01-01&view=summary")).data[0]?.id, "openai/gpt-5");
   assert.equal(listModels(snapshot, new URLSearchParams("released_before=2026-01-01&view=summary")).data[0]?.id, "openai/gpt-4o");
   assert.deepEqual(listModels(snapshot, new URLSearchParams("sort=updated&view=summary")).data.map((row) => row.id), ["openai/gpt-5", "openai/gpt-4o"]);
+});
+
+test("available scope ignores model age but rejects stale and expired offers", () => {
+  const oldButAvailable = sourceRecord("models_dev", "vendor/old-but-available", "Old but available", "available");
+  oldButAvailable.release_date = "2020-01-01";
+  const stale = sourceRecord("models_dev", "vendor/stale", "Stale", "stale");
+  stale.offers![0].evidence[0].fetched_at = "2026-08-20T00:00:00.000Z";
+  const expired = sourceRecord("models_dev", "vendor/expired", "Expired", "expired");
+  expired.offers![0].expires_at = "2026-08-26T00:00:00.000Z";
+  const snapshot = mergeSnapshots(undefined, [result("models_dev", [oldButAvailable, stale, expired])], "2026-08-27T00:00:00.000Z");
+
+  assert.deepEqual(listModels(snapshot, new URLSearchParams("view=summary")).data.map((row) => row.id), ["vendor/old-but-available"]);
+  assert.equal(listModels(snapshot, new URLSearchParams("scope=all&view=summary")).data.length, 3);
 });
 
 test("provider plus capability or context constraints cannot match across two different offers", () => {
@@ -222,19 +236,19 @@ test("benchmark observations expose a stable lane_id and reject mixed-lane score
   ];
   const snapshot = mergeSnapshots(undefined, [result("vals", [current, historical])], "2026-08-26T00:00:00.000Z");
   const listed = listBenchmarkObservations(snapshot, new URLSearchParams("benchmark=coding.terminalBench21&effort=high"));
-  assert.equal(listed.meta.scope, "current");
-  assert.equal(listed.data.length, 1);
+  assert.equal(listed.meta.scope, "available");
+  assert.equal(listed.data.length, 2);
   assert.ok(listed.data[0].lane_id);
   assert.equal(listed.data[0].lane_id, comparisonLaneId(listed.data[0]));
   assert.equal(listed.data[0].evidence.source_id, "vals");
-  assert.ok((listed.meta.excluded_count ?? 0) >= 1);
+  assert.equal(listed.meta.excluded_count, 0);
 
   const isolated = listBenchmarkObservations(snapshot, new URLSearchParams("benchmark=coding.terminalBench21&effort=high&metric=score&unit=percent&evaluator=vals&dataset_version=2.1&sort=score"));
-  assert.equal(isolated.data.length, 1);
+  assert.equal(isolated.data.length, 2);
   assert.equal(isolated.data[0].value, 70);
 
   const sorted = listBenchmarkObservations(snapshot, new URLSearchParams(`lane_id=${listed.data[0].lane_id}&sort=score`));
-  assert.equal(sorted.data.length, 1);
+  assert.equal(sorted.data.length, 2);
   assert.equal(sorted.data[0].lane_id, listed.data[0].lane_id);
   assert.equal(sorted.data[0].evidence.source_id, "vals");
 
@@ -403,6 +417,7 @@ function sourceRecord(sourceId: string, rawId: string, name: string, offerId: st
     id: identity.id,
     identity_confidence: identity.confidence,
     name,
+    release_date: "2026-01-01",
     creators: [rawId.split("/")[0]],
     aliases: [{ id: rawId, source_id: sourceId }],
     open_weights: null,

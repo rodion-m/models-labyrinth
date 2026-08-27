@@ -1,7 +1,7 @@
 import type { Model, Offer, Snapshot } from "./types.js";
 import { comparisonLaneId } from "./lane.js";
 import type { FlatBenchmarkObservation, FlatOffer } from "./query.js";
-import { inCurrentScope, offerInCurrentScope } from "./scope.js";
+import { inAvailableScope, offerInAvailableScope } from "./scope.js";
 
 export interface IndexedModel {
   model: Model;
@@ -16,7 +16,7 @@ export interface IndexedModel {
   benchmarkAliases: ReadonlySet<string>;
   maxContext: number;
   latest: string;
-  inCurrentScope: boolean;
+  inAvailableScope: boolean;
   indexedOffers: IndexedOffer[];
 }
 
@@ -34,7 +34,7 @@ export interface IndexedOffer {
   quantization?: string;
   hasRuntime: boolean;
   hasCachePricing: boolean;
-  inCurrentScope: boolean;
+  inAvailableScope: boolean;
 }
 
 export interface QueryIndex {
@@ -85,14 +85,14 @@ export function queryIndex(snapshot: Snapshot): QueryIndex {
     byAlias,
     providers: buildProviders(models),
     benchmarks: buildBenchmarks(models, snapshot),
-    facets: buildFacets(models.filter((row) => row.inCurrentScope)),
+    facets: buildFacets(models.filter((row) => row.inAvailableScope), true),
     facetsAll: buildFacets(models),
   };
   indexes.set(snapshot, result);
   return result;
 }
 
-function buildFacets(models: IndexedModel[]): Facets {
+function buildFacets(models: IndexedModel[], availableOnly = false): Facets {
   const capabilities = new Map<string, { models: Set<string>; offers: number }>();
   const efforts = new Map<string, { models: Set<string>; offers: number }>();
   const quantizations = new Map<string, { models: Set<string>; offers: number }>();
@@ -112,7 +112,9 @@ function buildFacets(models: IndexedModel[]): Facets {
     for (const modality of row.model.modalities.input) add(modalities, `input:${modality}`, row.model.id);
     for (const modality of row.model.modalities.output) add(modalities, `output:${modality}`, row.model.id);
     for (const source of row.sources) add(sources, source, row.model.id);
-    for (const offer of row.model.offers) {
+    for (const indexedOffer of row.indexedOffers) {
+      if (availableOnly && !indexedOffer.inAvailableScope) continue;
+      const offer = indexedOffer.offer;
       const offerCapabilities = new Set(trueKeys(offer.capabilities));
       if (offer.reasoning_efforts.length > 0) offerCapabilities.add("reasoning");
       for (const capability of offerCapabilities) add(capabilities, capability, row.model.id, true);
@@ -174,7 +176,7 @@ function indexModel(model: Model, generatedAt: string): IndexedModel {
     benchmarkAliases,
     maxContext,
     latest: model.evidence.map((value) => value.fetched_at).sort().at(-1) ?? "",
-    inCurrentScope: inCurrentScope(model, generatedAt),
+    inAvailableScope: inAvailableScope(model, generatedAt),
     indexedOffers: [],
   };
   indexed.indexedOffers = model.offers.map((offer) => indexOffer(indexed, offer, generatedAt));
@@ -201,7 +203,7 @@ function indexOffer(row: IndexedModel, offer: Offer, generatedAt: string): Index
     ...(offer.quantization ? { quantization: offer.quantization.toLowerCase() } : {}),
     hasRuntime: offer.runtime.length > 0,
     hasCachePricing: offer.pricing.some((price) => (price.dimension === "cache_read" || price.dimension === "cache_write") && price.amount_usd_per_unit !== null),
-    inCurrentScope: offerInCurrentScope(row.model, offer, generatedAt),
+    inAvailableScope: row.model.identity_confidence !== "unresolved" && offerInAvailableScope(offer, generatedAt),
   };
 }
 

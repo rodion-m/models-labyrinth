@@ -110,6 +110,7 @@ export interface Offer {
   provider_model_id: string;
   variant?: string;
   status: "active" | "absent";
+  expires_at?: string;
   quantization?: string;
   context_tokens?: number;
   max_output_tokens?: number;
@@ -227,8 +228,7 @@ export interface ApiEnvelope<T> {
     has_more: boolean;
     updated_at: string;
     schema_version: string;
-    scope?: "current" | "all";
-    recency_cutoff?: string;
+    scope?: "available" | "all";
     excluded_count?: number;
   };
 }

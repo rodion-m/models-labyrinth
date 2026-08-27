@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -13,6 +13,16 @@ import {
   scoreCandidates,
   selectCandidates,
 } from "../.agents/skills/model-that-fits-my-task/scripts/select-models.mjs";
+
+test("skill defaults to competitive and reserves frontier, available, and all for explicit cases", async () => {
+  const skill = await readFile(new URL("../.agents/skills/model-that-fits-my-task/SKILL.md", import.meta.url), "utf8");
+  const modes = await readFile(new URL("../.agents/skills/model-that-fits-my-task/references/selection-modes.md", import.meta.url), "utf8");
+
+  assert.match(skill, /Default to `competitive`/);
+  assert.match(skill, /maximum quality.*only the task-relevant frontier cohort/i);
+  assert.match(skill, /`scope=all` is almost never appropriate/);
+  assert.match(modes, /Price, speed, popularity, or availability cannot rescue a model below the floor/);
+});
 
 test("offline selector parses explicit bounded filters", () => {
   assert.deepEqual(parseSelectionArgs([
@@ -29,7 +39,7 @@ test("offline selector parses explicit bounded filters", () => {
   ]), {
     base: "https://rodion-m.github.io/models-labyrinth/api/v1",
     cache: "/tmp/models",
-    scope: "current",
+    scope: "available",
     providers: ["openrouter"],
     efforts: ["high"],
     quantizations: ["fp8"],
@@ -41,7 +51,7 @@ test("offline selector parses explicit bounded filters", () => {
     minContext: 200000,
     limit: 3,
   });
-  assert.throws(() => parseSelectionArgs(["--cache", "/tmp/models", "--scope", "modern"]), /current or all/);
+  assert.throws(() => parseSelectionArgs(["--cache", "/tmp/models", "--scope", "modern"]), /available or all/);
   assert.throws(() => parseSelectionArgs([]), /--cache is required/);
 });
 
@@ -140,7 +150,7 @@ test("offline selection joins only explicit aliases and keeps route constraints 
       model({
         id: "vendor/old-model",
         release_date: "2020-01-01",
-        offers: [offer("openrouter", { structured_outputs: true, tools: true }, 250_000, evidence)],
+        offers: [offer("openrouter", { structured_outputs: true, tools: false }, 250_000, evidence)],
         evidence,
       }),
     ],
@@ -149,11 +159,12 @@ test("offline selection joins only explicit aliases and keeps route constraints 
   const impossible = selectCandidates(snapshot, selection({ providers: ["openrouter"], capabilities: ["structured_outputs", "tools"] }));
   assert.equal(impossible.meta.total, 0);
 
-  const current = selectCandidates(snapshot, selection({ providers: ["openrouter"], capabilities: ["structured_outputs"], benchmarks: ["agentic.test"] }));
-  assert.equal(current.meta.total, 1);
-  assert.deepEqual(current.data[0].record_ids, ["vendor/model-1", "vendor/model.1"]);
-  assert.equal(current.data[0].observations[0].value, 81);
-  assert.equal(current.data[0].matching_offers[0].provider_id, "openrouter");
+  const available = selectCandidates(snapshot, selection({ providers: ["openrouter"], capabilities: ["structured_outputs"], benchmarks: ["agentic.test"] }));
+  assert.equal(available.meta.total, 1);
+  assert.equal(available.meta.evidence_max_age_hours, 36);
+  assert.deepEqual(available.data[0].record_ids, ["vendor/model-1", "vendor/model.1"]);
+  assert.equal(available.data[0].observations[0].value, 81);
+  assert.equal(available.data[0].matching_offers[0].provider_id, "openrouter");
 
   snapshot.models[1].offers[0].reasoning_efforts = ["high"];
   snapshot.models[1].offers[0].quantization = "fp8";
@@ -171,6 +182,16 @@ test("offline selection does not transfer alias evidence when either release is 
   delete aliasRecord.release_date;
   const selected = selectCandidates({ schema_version: "1.0", generated_at: "2026-08-27T00:00:00.000Z", content_hash: "fixture", sources: [], benchmarks: [], workload_profiles: [], models: [canonical, aliasRecord] }, selection({ benchmarks: ["agentic.test"] }));
   assert.equal(selected.meta.total, 0);
+});
+
+test("offline available scope admits unknown release dates with fresh offers", () => {
+  const evidence = { source_id: "fixture", url: "https://example.test", fetched_at: "2026-08-27T00:00:00.000Z", status: "observed" };
+  const unknown = model({ id: "vendor/unknown-release", offers: [offer("openrouter", { tools: true }, 100_000, evidence)], evidence });
+  delete unknown.release_date;
+  const snapshot = { schema_version: "1.0", generated_at: "2026-08-27T00:00:00.000Z", content_hash: "fixture", sources: [], benchmarks: [], workload_profiles: [], models: [unknown] };
+
+  assert.equal(selectCandidates(snapshot, selection()).meta.total, 1);
+  assert.equal(selectCandidates(snapshot, selection({ scope: "all" })).meta.total, 1);
 });
 
 test("bundle downloader reuses a matching content-hash cache without downloading the snapshot again", async () => {
@@ -228,7 +249,7 @@ test("decision validation rejects omitted provider and effort but accepts explic
 
 function selection(overrides = {}) {
   return {
-    scope: "current",
+    scope: "available",
     providers: [],
     efforts: [],
     quantizations: [],

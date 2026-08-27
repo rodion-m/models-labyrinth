@@ -6,7 +6,6 @@ export const MAX_LIMIT = 100;
 export const DEFAULT_MAX_BYTES = 12 * 1024 * 1024;
 export const CACHE_TTL_SECONDS = 60 * 60;
 export const SNAPSHOT_CACHE_TTL_MS = Number.POSITIVE_INFINITY;
-export const CURRENT_RELEASE_WINDOW_DAYS = 730;
 export const EVIDENCE_STALE_MS = 36 * 60 * 60 * 1_000;
 export const RUNTIME_QUERY_FILENAME = "runtime-query.json";
 

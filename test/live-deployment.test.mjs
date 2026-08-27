@@ -8,10 +8,10 @@ test("deployed API supports the skill navigation contract", { skip: !live, timeo
   const health = await getJson("/health");
   assert.equal(health.status, "ok");
   assert.ok(health.content_hash);
-  assert.equal(health.default_scope, "current");
+  assert.equal(health.default_scope, "available");
 
   const schema = await getJson("/schema");
-  assert.deepEqual(schema.$defs.api_meta.properties.scope.enum, ["current", "all"]);
+  assert.deepEqual(schema.$defs.api_meta.properties.scope.enum, ["available", "all"]);
   assert.ok(schema.$defs.comparison_lane);
 
   const facets = await getJson("/facets");

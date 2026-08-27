@@ -82,6 +82,7 @@ export async function collectOpenRouter(options: OpenRouterOptions = {}): Promis
           providerName: providerId,
           providerModelId: endpointModelId,
           variant,
+          expiresAt: endpointRecord.expiration_date ?? result.row.expiration_date,
           quantization,
           contextTokens: endpointRecord.context_length,
           maxOutputTokens: endpointRecord.max_completion_tokens,

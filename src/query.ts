@@ -17,7 +17,6 @@ import {
   valuesFor,
   type QueryScope,
 } from "./query-params.js";
-import { recencyCutoffDate } from "./scope.js";
 import type { ApiEnvelope, BenchmarkObservation, Model, Offer, Snapshot, WorkloadProfile } from "./types.js";
 import { stableSort } from "./utils.js";
 
@@ -101,17 +100,16 @@ export function listModels(snapshot: Snapshot, params: URLSearchParams | Record<
     if (openWeights !== undefined && row.model.open_weights !== openWeights) return false;
     if (releasedAfter && (!row.model.release_date || row.model.release_date.slice(0, 10) < releasedAfter)) return false;
     if (releasedBefore && (!row.model.release_date || row.model.release_date.slice(0, 10) > releasedBefore)) return false;
-    if (!matchesOfferScopedConstraints(row, offerScoped)) return false;
+    if (!matchesOfferScopedConstraints(row, offerScoped, scope)) return false;
     return true;
   });
   const beforeScope = models.length;
-  if (scope === "current") models = models.filter((row) => row.inCurrentScope);
+  if (scope === "available") models = models.filter((row) => row.inAvailableScope);
   models = sortModels(models, sort);
   const data: Array<Model | ModelSummary> = view === "summary" ? models.map(summarizeModel) : models.map((row) => row.model);
   return paginate(data, get("limit"), get("offset"), snapshot, view === "summary" ? MAX_LIMIT : MAX_FULL_MODEL_LIMIT, {
     scope,
-    recency_cutoff: recencyCutoffDate(snapshot.generated_at),
-    excluded_count: scope === "current" ? beforeScope - models.length : 0,
+    excluded_count: scope === "available" ? beforeScope - models.length : 0,
   });
 }
 
@@ -156,8 +154,8 @@ export function listOffers(snapshot: Snapshot, params: URLSearchParams | Record<
     return true;
   });
   const beforeScope = indexedOffers.length;
-  if (scope === "current") indexedOffers = indexedOffers.filter((row) => row.inCurrentScope);
-  const excludedCount = scope === "current" ? beforeScope - indexedOffers.length : 0;
+  if (scope === "available") indexedOffers = indexedOffers.filter((row) => row.inAvailableScope);
+  const excludedCount = scope === "available" ? beforeScope - indexedOffers.length : 0;
   const costs = new Map<string, ReturnType<typeof estimateWorkloadCost>>();
   if (profile) {
     for (const row of indexedOffers) costs.set(row.offer.id, estimateWorkloadCost(row.offer, profile));
@@ -191,7 +189,6 @@ export function listOffers(snapshot: Snapshot, params: URLSearchParams | Record<
   });
   return paginate(offers, get("limit"), get("offset"), snapshot, MAX_LIMIT, {
     scope,
-    recency_cutoff: recencyCutoffDate(snapshot.generated_at),
     excluded_count: excludedCount,
   });
 }
@@ -200,8 +197,8 @@ export function listProviders(snapshot: Snapshot, params: URLSearchParams | Reco
   const scope = parseScope(getter(params)("scope"));
   const index = queryIndex(snapshot);
   if (scope === "all") return index.providers;
-  const currentProviderIds = new Set(index.offers.filter((row) => row.inCurrentScope).map((row) => row.providerId));
-  return index.providers.filter((provider) => currentProviderIds.has(String(provider.provider_id).toLowerCase()));
+  const availableProviderIds = new Set(index.offers.filter((row) => row.inAvailableScope).map((row) => row.providerId));
+  return index.providers.filter((provider) => availableProviderIds.has(String(provider.provider_id).toLowerCase()));
 }
 
 export function listBenchmarks(snapshot: Snapshot, params: URLSearchParams | Record<string, string | undefined> = {}): Array<Record<string, unknown>> {
@@ -236,7 +233,7 @@ export function listBenchmarkObservations(snapshot: Snapshot, params: URLSearchP
   const laneId = get("lane_id");
   const sort = parseObservationSort(get("sort"));
   const index = queryIndex(snapshot);
-  const currentIds = new Set(index.models.filter((row) => row.inCurrentScope).map((row) => row.model.id));
+  const availableIds = new Set(index.models.filter((row) => row.inAvailableScope).map((row) => row.model.id));
   let rows = index.observations.filter((row) => {
     if (laneId && row.lane_id !== laneId) return false;
     if (models.length > 0 && !models.includes(row.model_id.toLowerCase())) return false;
@@ -251,7 +248,7 @@ export function listBenchmarkObservations(snapshot: Snapshot, params: URLSearchP
     return true;
   });
   const beforeScope = rows.length;
-  if (scope === "current") rows = rows.filter((row) => currentIds.has(row.model_id));
+  if (scope === "available") rows = rows.filter((row) => availableIds.has(row.model_id));
   const lanes = new Set(rows.map((row) => row.lane_id));
   if (sort === "score" && lanes.size > 1) {
     throw new QueryInputError("sort", "sort=score requires a single comparison lane; pass lane_id or filters that isolate one comparison lane");
@@ -262,8 +259,7 @@ export function listBenchmarkObservations(snapshot: Snapshot, params: URLSearchP
   });
   return paginate(rows, get("limit"), get("offset"), snapshot, MAX_LIMIT, {
     scope,
-    recency_cutoff: recencyCutoffDate(snapshot.generated_at),
-    excluded_count: scope === "current" ? beforeScope - rows.length : 0,
+    excluded_count: scope === "available" ? beforeScope - rows.length : 0,
   });
 }
 
@@ -272,19 +268,18 @@ export function listProfiles(): WorkloadProfile[] {
 }
 
 export interface FacetResponse extends Facets {
-  meta: { scope: QueryScope; recency_cutoff: string; excluded_count: number; updated_at: string; schema_version: string };
+  meta: { scope: QueryScope; excluded_count: number; updated_at: string; schema_version: string };
 }
 
 export function listFacets(snapshot: Snapshot, params: URLSearchParams | Record<string, string | undefined> = {}): FacetResponse {
   const scope = parseScope(getter(params)("scope"));
   const index = queryIndex(snapshot);
   const facets = scope === "all" ? index.facetsAll : index.facets;
-  const excludedCount = scope === "current" ? index.models.length - index.models.filter((row) => row.inCurrentScope).length : 0;
+  const excludedCount = scope === "available" ? index.models.length - index.models.filter((row) => row.inAvailableScope).length : 0;
   return {
     ...facets,
     meta: {
       scope,
-      recency_cutoff: recencyCutoffDate(snapshot.generated_at),
       excluded_count: excludedCount,
       updated_at: snapshot.generated_at,
       schema_version: snapshot.schema_version,
@@ -294,18 +289,17 @@ export function listFacets(snapshot: Snapshot, params: URLSearchParams | Record<
 
 export function health(snapshot: Snapshot): Record<string, unknown> {
   const now = Date.now();
-  const currentModelCount = queryIndex(snapshot).models.filter((row) => row.inCurrentScope).length;
+  const availableModelCount = queryIndex(snapshot).models.filter((row) => row.inAvailableScope).length;
   return {
     status: snapshot.models.length > 0 ? "ok" : "empty",
     schema_version: snapshot.schema_version,
     generated_at: snapshot.generated_at,
     content_hash: snapshot.content_hash,
     model_count: snapshot.models.length,
-    current_model_count: currentModelCount,
+    available_model_count: availableModelCount,
     all_model_count: snapshot.models.length,
     source_count: snapshot.sources.length,
-    default_scope: "current",
-    recency_cutoff: recencyCutoffDate(snapshot.generated_at),
+    default_scope: "available",
     sources: snapshot.sources.map((source) => ({
       ...source,
       stale: source.last_success_at ? now - Date.parse(source.last_success_at) > EVIDENCE_STALE_MS : true,
@@ -322,7 +316,7 @@ function matchesOfferScopedConstraints(row: IndexedModel, constraints: {
   minContext: number | undefined;
   hasRuntime: boolean | undefined;
   hasCachePricing: boolean | undefined;
-}): boolean {
+}, scope: QueryScope): boolean {
   const offerScopedPresent = constraints.providers.length > 0
     || constraints.capabilities.length > 0
     || constraints.efforts.length > 0
@@ -334,6 +328,7 @@ function matchesOfferScopedConstraints(row: IndexedModel, constraints: {
   if (!offerScopedPresent) return true;
 
   const offerMatch = (offer: IndexedOffer) => {
+    if (scope === "available" && !offer.inAvailableScope) return false;
     if (constraints.providers.length > 0 && !constraints.providers.includes(offer.providerId)) return false;
     if (!constraints.capabilities.every((capability) => offer.capabilities.has(capability))) return false;
     if (constraints.efforts.length > 0 && !constraints.efforts.some((effort) => offer.efforts.has(effort))) return false;
@@ -355,7 +350,7 @@ function paginate<T>(
   rawOffset: string | undefined,
   snapshot: Snapshot,
   maxLimit = MAX_LIMIT,
-  extra: { scope?: QueryScope; recency_cutoff?: string; excluded_count?: number } = {},
+  extra: { scope?: QueryScope; excluded_count?: number } = {},
 ): ApiEnvelope<T> {
   const paging = parsePaging(rawLimit, rawOffset, maxLimit);
   return {
@@ -368,7 +363,6 @@ function paginate<T>(
       updated_at: snapshot.generated_at,
       schema_version: snapshot.schema_version,
       ...(extra.scope ? { scope: extra.scope } : {}),
-      ...(extra.recency_cutoff ? { recency_cutoff: extra.recency_cutoff } : {}),
       ...(extra.excluded_count !== undefined ? { excluded_count: extra.excluded_count } : {}),
     },
   };

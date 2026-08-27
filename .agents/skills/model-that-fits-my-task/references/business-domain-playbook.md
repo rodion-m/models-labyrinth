@@ -1,6 +1,10 @@
 # Business-domain decision playbook
 
-Read this reference when the workload is professional or organizational rather than a generic chat, coding, or academic task. Resolve the current canonical benchmark IDs through `/benchmarks?kind=benchmark&q=<name>`; names below are stable reading labels, not hard-coded IDs.
+Read this reference when the workload is professional or organizational rather than a generic chat, coding, or academic task. Apply the benchmark status map named in `SKILL.md` before using any cross-domain coding or agent benchmark. Resolve the current canonical benchmark IDs through `/benchmarks?kind=benchmark&q=<name>`; names below are stable reading labels, not hard-coded IDs.
+
+Default to `competitive` unless the user explicitly asks for maximum quality.
+Domain fit establishes the quality floor before workload cost; sparse business
+evidence does not justify admitting a cheap general model below that floor.
 
 ## Evidence ladder
 

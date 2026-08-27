@@ -10,14 +10,13 @@ import { parsePositiveNumber, parseScoreDimension, scoreCandidates } from "./tas
 
 export { scoreCandidates } from "./task-fit-score.mjs";
 
-const CURRENT_MAX_AGE_DAYS = 730;
-const FRESH_EVIDENCE_HOURS = 36;
+const EVIDENCE_MAX_AGE_MS = 36 * 60 * 60 * 1000;
 
 export function parseSelectionArgs(argv) {
   const options = {
     base: DEFAULT_BASE,
     cache: undefined,
-    scope: "current",
+    scope: "available",
     providers: [],
     efforts: [],
     quantizations: [],
@@ -67,7 +66,7 @@ export function parseSelectionArgs(argv) {
     index += 1;
   }
   if (!options.cache) throw new Error("--cache is required");
-  if (!new Set(["current", "all"]).has(options.scope)) throw new Error("--scope must be current or all");
+  if (!new Set(["available", "all"]).has(options.scope)) throw new Error("--scope must be available or all");
   return options;
 }
 
@@ -103,9 +102,9 @@ export function selectCandidates(snapshot, options) {
   for (const records of components) {
     const canonical = chooseCanonical(records);
     const offers = records.flatMap((model) => model.offers ?? []);
-    const matchingOffers = offers.filter((offer) => offerMatches(offer, options));
-    const activeOffers = offers.filter((offer) => offer.status === "active");
-    if (options.scope === "current" && !isCurrent(records, activeOffers, generatedAt)) continue;
+    const matchingOffers = offers.filter((offer) => offerMatches(offer, options, generatedAt));
+    const availableOffers = offers.filter((offer) => isAvailableOffer(offer, generatedAt));
+    if (options.scope === "available" && !isAvailable(records, availableOffers)) continue;
     if (hasOfferFilters(options) && matchingOffers.length === 0) continue;
     if (options.models.length > 0 && !matchesModel(records, options.models)) continue;
 
@@ -152,7 +151,7 @@ export function selectCandidates(snapshot, options) {
       total: candidates.length,
       limit: options.limit,
       scope: options.scope,
-      current_max_age_days: CURRENT_MAX_AGE_DAYS,
+      evidence_max_age_hours: EVIDENCE_MAX_AGE_MS / 3_600_000,
       generated_at: snapshot.generated_at,
       content_hash: snapshot.content_hash,
       scoring,
@@ -196,14 +195,19 @@ function canonicalRank(model) {
   return active * 100 + identity * 10 + Math.min(model.benchmarks?.length ?? 0, 9) - variantPenalty;
 }
 
-function isCurrent(records, activeOffers, generatedAt) {
-  if (activeOffers.length === 0) return false;
+function isAvailable(records, availableOffers) {
+  if (availableOffers.length === 0) return false;
   if (!records.some((model) => model.identity_confidence !== "unresolved")) return false;
-  const dates = records.map((model) => Date.parse(model.release_date)).filter(Number.isFinite);
-  if (dates.length > 0) return generatedAt - Math.max(...dates) <= CURRENT_MAX_AGE_DAYS * 86_400_000;
-  const evidenceDates = activeOffers.flatMap((offer) => offer.evidence ?? [])
-    .map((evidence) => Date.parse(evidence.fetched_at)).filter(Number.isFinite);
-  return evidenceDates.length > 0 && generatedAt - Math.max(...evidenceDates) <= FRESH_EVIDENCE_HOURS * 3_600_000;
+  return true;
+}
+
+function isAvailableOffer(offer, generatedAt) {
+  if (offer.status !== "active") return false;
+  if (offer.expires_at && Date.parse(offer.expires_at) <= generatedAt) return false;
+  return (offer.evidence ?? []).some((item) => {
+    const fetchedAt = Date.parse(item.fetched_at);
+    return Number.isFinite(fetchedAt) && fetchedAt <= generatedAt && generatedAt - fetchedAt <= EVIDENCE_MAX_AGE_MS;
+  });
 }
 
 function hasOfferFilters(options) {
@@ -211,8 +215,8 @@ function hasOfferFilters(options) {
     || options.capabilities.length > 0 || options.minContext > 0;
 }
 
-function offerMatches(offer, options) {
-  if (offer.status !== "active") return false;
+function offerMatches(offer, options, generatedAt) {
+  if (options.scope === "available" ? !isAvailableOffer(offer, generatedAt) : offer.status !== "active") return false;
   if (options.providers.length > 0 && !options.providers.includes(String(offer.provider_id).toLowerCase())) return false;
   if (options.efforts.length > 0 && !options.efforts.some((effort) => (offer.reasoning_efforts ?? []).map((value) => value.toLowerCase()).includes(effort))) return false;
   if (options.quantizations.length > 0 && !options.quantizations.includes(String(offer.quantization ?? "").toLowerCase())) return false;
@@ -240,6 +244,7 @@ function compactOffer(offer) {
     provider_id: offer.provider_id,
     provider_model_id: offer.provider_model_id,
     variant: offer.variant ?? null,
+    expires_at: offer.expires_at ?? null,
     quantization: offer.quantization ?? null,
     context_tokens: offer.context_tokens ?? null,
     max_output_tokens: offer.max_output_tokens ?? null,
@@ -268,7 +273,7 @@ function parseInteger(value, name, minimum) {
 }
 
 function usage() {
-  return "Usage: node scripts/select-models.mjs --cache <directory> [--scope current|all] [--provider id] [--effort level] [--quantization type] [--capability name] [--min-context tokens] [--benchmark id] [--score benchmark-or-lane[=weight][:higher|lower]] [--coverage-penalty n] [--model id] [--limit n] [--base url]";
+  return "Usage: node scripts/select-models.mjs --cache <directory> [--scope available|all] [--provider id] [--effort level] [--quantization type] [--capability name] [--min-context tokens] [--benchmark id] [--score benchmark-or-lane[=weight][:higher|lower]] [--coverage-penalty n] [--model id] [--limit n] [--base url]";
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

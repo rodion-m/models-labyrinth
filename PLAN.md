@@ -315,10 +315,15 @@ historical catalog.
 - **Offer**: one provider-accessible route for a canonical model, including its
   provider model id, variant, status, limits, capabilities, pricing, runtime,
   quantization, policy, and reasoning controls.
-- **Current scope**: the default selection catalog. It contains canonical models
-  with at least one active matching offer and excludes records that are clearly
-  historical, superseded, unresolved, or outside the documented recency window.
-  An unknown release date is allowed only when an active offer has fresh evidence.
+- **Available scope**: the default deployability catalog. It contains canonical
+  identities with at least one active, unexpired offer backed by evidence fresh
+  at snapshot time. It is not a quality or recommendation class.
+- **Competitive mode**: the normal task-conditioned decision. Apply hard gates
+  and a relevant quality floor, then compare non-dominated offer × effort pairs
+  on workload economics and operations.
+- **Frontier mode**: only for an explicit maximum-quality request. Search only
+  the task-relevant frontier cohort; report cost without admitting weaker models
+  because they are cheaper.
 - **All scope**: the complete historical and unresolved catalog, selected with
   `scope=all` or by downloading `snapshot.json`.
 - **Comparison lane**: benchmark observations with the same canonical benchmark,
@@ -330,8 +335,8 @@ historical catalog.
 1. Add explicit lifecycle/selection metadata derived deterministically from the
    snapshot timestamp, release date, identity confidence, active offers, and
    evidence freshness. Default `/models`, `/offers`, and `/facets` to
-   `scope=current`; preserve `scope=all`, explicit release-date filters, and
-   transparent `meta.scope`, cutoff, and exclusion counts.
+   `scope=available`; preserve `scope=all`, explicit release-date filters, and
+   transparent scope and exclusion counts. Do not use release age as availability.
 2. Make model filtering route-correct: when provider, capability, effort,
    quantization, context, runtime, cache, or supported-parameter constraints are
    supplied together, one offer must satisfy all offer-scoped constraints.
@@ -363,8 +368,9 @@ historical catalog.
 
 ### Workstream B — agent skill (Codex)
 
-1. Start model selection from `scope=current` and use `scope=all` only for an
-   explicit historical/open-ended request.
+1. Default decisions to `competitive`. Use `frontier` only when the user
+   explicitly prioritizes maximum quality, `available` only as a rare inventory
+   expansion, and `all` almost exclusively for explicit historical/audit work.
 2. Require offer-scoped compatibility before quality ranking and require one
    comparison lane for every numeric leaderboard claim.
 3. Require a same-hash health/schema/snapshot bundle. Full-snapshot work must use
@@ -380,8 +386,8 @@ historical catalog.
 
 ### Acceptance criteria
 
-- The audited architect-agent query returns only current canonical candidates by
-  default, and `scope=all` still exposes the complete catalog.
+- The API defaults to freshly available canonical offers, while the skill defaults
+  to a competitive task-conditioned decision and `scope=all` remains exhaustive.
 - Provider plus capability/context/effort constraints cannot match across two
   different offers.
 - Known punctuation/batch duplicate fixtures join without merging genuinely

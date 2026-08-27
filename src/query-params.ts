@@ -1,7 +1,7 @@
 import { DEFAULT_LIMIT, MAX_LIMIT, WORKLOAD_PROFILES } from "./constants.js";
 import type { WorkloadProfile } from "./types.js";
 
-export type QueryScope = "current" | "all";
+export type QueryScope = "available" | "all";
 
 export class QueryInputError extends Error {
   parameter: string;
@@ -26,9 +26,9 @@ export function valuesFor(params: URLSearchParams | Record<string, string | unde
 }
 
 export function parseScope(value: string | undefined): QueryScope {
-  if (value === undefined || value === "") return "current";
-  if (value === "current" || value === "all") return value;
-  throw new QueryInputError("scope", "scope must be current or all");
+  if (value === undefined || value === "") return "available";
+  if (value === "available" || value === "all") return value;
+  throw new QueryInputError("scope", "scope must be available or all");
 }
 
 export function parseView(value: string | undefined): "summary" | "full" {

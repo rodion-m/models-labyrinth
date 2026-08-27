@@ -67,6 +67,7 @@ export function offer(input: {
   providerName?: unknown;
   providerModelId: unknown;
   variant?: unknown;
+  expiresAt?: unknown;
   quantization?: unknown;
   contextTokens?: unknown;
   maxOutputTokens?: unknown;
@@ -87,6 +88,7 @@ export function offer(input: {
     provider_model_id: providerModelId,
     ...(variant ? { variant } : {}),
     status: "active",
+    ...(stringValue(input.expiresAt) ? { expires_at: stringValue(input.expiresAt) } : {}),
     ...(stringValue(input.quantization) ? { quantization: stringValue(input.quantization) } : {}),
     ...(numberValue(input.contextTokens) !== undefined ? { context_tokens: numberValue(input.contextTokens) } : {}),
     ...(numberValue(input.maxOutputTokens) !== undefined ? { max_output_tokens: numberValue(input.maxOutputTokens) } : {}),

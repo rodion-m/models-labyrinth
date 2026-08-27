@@ -25,15 +25,15 @@ The strongest production recommendation names an offer. When only model-level qu
 
 ## Choose the catalog scope
 
-Selection endpoints default to `scope=current`: canonical models with a current
-active offer and sufficiently recent release or provider evidence. This removes
-historical benchmark systems, unresolved records, stale releases, and offerless
-catalog entries from ordinary recommendation work. It is not a quality filter.
+Selection endpoints default to `scope=available`: canonical identities with at
+least one active, unexpired offer backed by evidence no older than 36 hours at
+snapshot generation time. Release age is deliberately irrelevant. This scope
+answers “what appears deployable?”, not “what should I choose?”.
 
-Use `scope=all` only when the request is explicitly historical, exhaustive,
-supersession-oriented, or cannot be answered from current candidates. The full
-snapshot always remains comprehensive. Preserve `meta.scope`, cutoff, and
-exclusion counts in reproducible work.
+Using `available` as the final shortlist is rare; first apply the task's quality
+gate. Use `scope=all` almost exclusively for explicit historical, exhaustive,
+supersession, reproducibility, or audit work. It includes stale, unavailable,
+unresolved, and offerless records. Preserve `meta.scope` and exclusion counts.
 
 ## API-first queries
 
@@ -41,7 +41,7 @@ Start with health and facet discovery:
 
 ```text
 GET /health
-GET /providers?scope=current
+GET /providers?scope=available
 GET /benchmarks?kind=benchmark
 GET /profiles
 ```
@@ -49,10 +49,10 @@ GET /profiles
 Form candidates with conjunctive filters:
 
 ```text
-GET /models?scope=current&capability=tools&min_context=100000&provider=openrouter&sort=released&limit=100
-GET /offers?scope=current&provider=openrouter&capability=tools&capability=structured_outputs&min_context=100000&limit=100
-GET /benchmark-observations?scope=current&benchmark=agentic.toolathlonVerified&limit=100
-GET /offers?scope=current&model=openai/gpt-5&provider=openrouter&profile=custom&input_tokens=10000&output_tokens=300&cached_input_ratio=0.5&cache_write_tokens=5000&reasoning_tokens=1000&sort=cost&limit=100
+GET /models?scope=available&capability=tools&min_context=100000&provider=openrouter&sort=released&limit=100
+GET /offers?scope=available&provider=openrouter&capability=tools&capability=structured_outputs&min_context=100000&limit=100
+GET /benchmark-observations?scope=available&benchmark=agentic.toolathlonVerified&limit=100
+GET /offers?scope=available&model=openai/gpt-5&provider=openrouter&profile=custom&input_tokens=10000&output_tokens=300&cached_input_ratio=0.5&cache_write_tokens=5000&reasoning_tokens=1000&sort=cost&limit=100
 ```
 
 Capabilities, modalities, and supported parameters in one request are ANDed.
