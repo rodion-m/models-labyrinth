@@ -47,7 +47,7 @@ For OpenRouter endpoint selection after choosing an exact model slug, read [open
 - Resolve canonical IDs through `/benchmarks`. `source_benchmark_ids` are aliases or provenance, not extra votes.
 - Preserve benchmark metric, unit, variant, effort, evaluator, dataset version, configuration, source, and date. One numeric comparison uses one `lane_id`; do not calculate a mean or median across lanes.
 - Use canonical model identities and source-proven aliases from the API or validated selector. Never normalize punctuation, strip versions, or merge batch/configuration suffixes ad hoc. Never transfer evidence from version 1.1 to 1.2.
-- Treat a score as `model × harness × tools × configuration`, not automatically as a base-model property.
+- Treat a score as `model × harness × tools × configuration`, not automatically as a base-model property. For LiveBench, preserve the release, exact subtask, effort, evaluator, and model configuration; its category/overall rows are derived aggregates and its evaluation economics are not provider-route pricing.
 - A declared capability such as structured outputs or tools is support metadata, not measured reliability.
 - Quantization belongs to an offer. Do not transfer an unquantized score without labeling the quality impact unknown.
 - Compare OpenRouter candidates as `endpoint × effort`, not endpoint alone. Never copy an effort from the incumbent or another model. If the route exposes only Boolean reasoning, say that named effort is unsupported.

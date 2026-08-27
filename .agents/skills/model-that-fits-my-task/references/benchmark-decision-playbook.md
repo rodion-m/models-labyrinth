@@ -9,6 +9,7 @@ Prefer a current benchmark that reproduces the task, then a close task-family be
 | Workload | Quality evidence to prioritize | Conditions to preserve |
 | --- | --- | --- |
 | Production repository work | FrontierCode 1.1, DeepSWE v1.1, SWE-Rebench, FrontierSWE; Terminal-Bench 3 for terminal-heavy work | Repository revision, scaffold, tools, timeout, verifier; SWE-bench Verified/Pro and Terminal-Bench 2.1 are coverage anchors |
+| General current reasoning, coding, and agentic coding | LiveBench release task lanes, when the task matches one of its subtasks; use its coding and agentic-coding rows separately | Release, exact subtask, effort, evaluator, and model configuration; LiveBench category/overall rows are derived aggregates, not independent tasks |
 | Algorithms or isolated code | LiveCodeBench v6/Pro, SciCode, ProgramBench; Codeforces only for matching contest work | Compiler/runtime, pass@k, cutoff, effort, token budget, output price |
 | Tool and MCP workflows | Toolathlon-Verified, MCP-Atlas, τ³-bench; BFCL v4 for call/schema mechanics | Exact tools, service state, parameters, retries, context growth, route uptime and latency |
 | Desktop/mobile computer use | OSWorld 2.0, MobileWorld, WebArena-Verified; ScreenSpot-Pro only for grounding | VM/app release, vision/action interface, state reset, evaluator, task success |
@@ -26,7 +27,7 @@ For finance, legal, healthcare, education, public services, office artifacts, Sa
 
 Do not mix ARC-AGI 1/2/3, Terminal-Bench 2.0/2.1/3, OSWorld/Verified/2.0, FrontierMath legacy/V2, τ-bench releases or domains, or tool/no-tool lanes. Keep benchmark releases distinct unless the catalog explicitly represents a metric, evaluator, or variant of one canonical release.
 
-When no close benchmark exists, say so and lower confidence instead of synthesizing a universal score. Use broad evidence only as a tie-breaker or prior, never as proof of performance on an uncovered workflow.
+When no close benchmark exists, say so and lower confidence instead of synthesizing a universal score. Use broad evidence only as a tie-breaker or prior, never as proof of performance on an uncovered workflow. LiveBench evaluation cost/token fields describe the published benchmark run; use offer pricing and workload estimates for deployment economics.
 
 ## Task-fit scoring
 

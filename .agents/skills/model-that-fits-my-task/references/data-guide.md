@@ -110,6 +110,14 @@ where published, task-level latency, token counts, and spend. Treat
 as provider list pricing. Likewise, `provider`, `harness`, and effort fields
 describe the evaluated setup rather than a currently available provider offer.
 
+LiveBench adds release-versioned objective subtasks across reasoning, coding,
+agentic coding, mathematics, data analysis, language, and instruction following.
+Its `effort`, `evaluator`, `dataset_version`, and source model id must remain in
+the comparison lane. Category and overall observations are explicit derived
+aggregates; do not count them as extra task votes. Its evaluation cost, average
+token, and published input/output price fields describe the benchmark run, not
+a current provider route quote.
+
 ## Provenance and confidence
 
 Every important observation should carry `evidence.source_id`, `url`, `fetched_at`, and `status`. `observed` means the adapter read it from that source. `derived` means the source or catalog republished or transformed another source; inspect `derived_from`. `stale` means retained older data.
