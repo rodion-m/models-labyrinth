@@ -17,13 +17,13 @@ test("deployed API supports the skill navigation contract", { skip: !live, timeo
   const facets = await getJson("/facets");
   assert.ok(Array.isArray(facets.data.capabilities));
   assert.ok(Array.isArray(facets.data.modalities));
-  assert.equal(facets.meta.scope, "current");
+  assert.equal(facets.meta.scope, "available");
 
   const models = await getJson("/models?view=summary&provider=openrouter&modality=input%3Atext&limit=1");
   assert.equal(models.data.length, 1);
   assert.equal(models.data[0].offers, undefined);
   assert.ok(models.data[0].identity_confidence);
-  assert.equal(models.meta.scope, "current");
+  assert.equal(models.meta.scope, "available");
 
   const all = await getJson("/models?scope=all&view=summary&provider=openrouter&modality=input%3Atext&limit=1");
   assert.equal(all.meta.scope, "all");
@@ -40,7 +40,7 @@ test("deployed API supports the skill navigation contract", { skip: !live, timeo
   const offers = await getJson("/offers?model=openai%2Fo3-mini&provider=openrouter&profile=custom&input_tokens=10000&output_tokens=300&sort=cost&limit=1");
   assert.equal(offers.data[0]?.model_id, "openai/o3-mini");
   assert.equal(offers.data[0]?.workload_profile?.input_tokens, 10_000);
-  assert.equal(offers.meta.scope, "current");
+  assert.equal(offers.meta.scope, "available");
 
   const mixed = await fetch(`${base}/benchmark-observations?sort=score&limit=1`);
   assert.equal(mixed.status, 400);
@@ -48,7 +48,7 @@ test("deployed API supports the skill navigation contract", { skip: !live, timeo
   assert.equal(mixedBody.error.parameter, "sort");
 
   const observations = await getJson("/benchmark-observations?limit=1");
-  assert.equal(observations.meta.scope, "current");
+  assert.equal(observations.meta.scope, "available");
   assert.ok(observations.data[0].lane_id);
   const lane = await getJson(`/benchmark-observations?lane_id=${observations.data[0].lane_id}&sort=score&limit=1`);
   assert.equal(lane.data[0].lane_id, observations.data[0].lane_id);
