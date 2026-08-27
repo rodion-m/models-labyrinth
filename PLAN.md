@@ -118,6 +118,11 @@ it is never presented as a new benchmark measurement.
   evaluation conditions and workload spend. There is no documented public
   leaderboard read API, so the adapter reads bounded static Astro payloads
   and reports page-contract failures without erasing the prior snapshot.
+- LiveBench official release tables: objective task scores across reasoning,
+  coding, agentic coding, mathematics, data analysis, language, and instruction
+  following, with published effort variants and optional evaluation cost/token
+  metadata. Category and overall values are derived aggregates, not extra
+  independent benchmark votes.
 - Epoch AI public model/benchmark downloads: independent benchmark and
   model-compute metadata where the join is strong enough. It is an enrichment
   source and may remain unmatched instead of causing a risky fuzzy merge.
@@ -286,6 +291,7 @@ is:
 | [BenchLM data](https://www.benchlm.ai/data) | benchmark/price/speed snapshot; preserve its own aggregation and mark AA-derived rows |
 | [Artificial Analysis Data API](https://artificialanalysis.ai/data-api/docs) | key-gated indices, median performance, and pricing; useful internally when the account tier permits it |
 | [Vals benchmarks](https://www.vals.ai/benchmarks) | professional and agentic benchmark snapshots, including task variants and published effort, harness, provider, latency, token, and workload-spend conditions; static page contract rather than a documented read API |
+| [LiveBench](https://github.com/LiveBench/new-livebench) | release-versioned objective subtask scores, effort variants, category/overall aggregates, and optional evaluation cost/token metadata; official raw GitHub files rather than a separate API |
 | [Epoch AI benchmark data](https://epoch.ai/benchmarks/use-this-data) | independent benchmark/model-compute context, with explicit attribution and conservative identity joins |
 | [Portkey pricing configs](https://github.com/Portkey-AI/models) | optional extra price dimensions such as batch/cache/audio/image/search/thinking; no quality or runtime claims |
 | BenchGecko, ModelCap, CloudPrice | optional derived cross-checks; never count their overlapping AA/OpenRouter values as independent measurements |
@@ -404,6 +410,14 @@ OpenRouter's cache usage and reasoning-token fields are real request metadata,
 not universal per-model cache-hit or effort curves. The case-specific fields
 therefore enter the database only when an upstream source publishes them; the
 project will not synthesize pass/fail or load-test rates.
+
+LiveBench is integrated as a primary benchmark source. Its release table supplies
+objective subtask observations with `dataset_version`, `evaluator`, and the
+published effort variant; its optional cost table is retained as evaluation-run
+metrics and never mistaken for a provider offer quote. Category and overall rows
+are explicit derived index/aggregate observations. BenchGecko category-level
+LiveBench aliases point at these canonical aggregate identities, so the same
+published result is not counted as an extra independent vote.
 
 ### Task-fit score extension
 

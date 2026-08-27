@@ -5,6 +5,7 @@ import { collectModelsDev } from "../src/sources/models-dev.js";
 import { collectOpenRouter } from "../src/sources/openrouter.js";
 import { collectArtificialAnalysis } from "../src/sources/artificial-analysis.js";
 import { collectVals } from "../src/sources/vals.js";
+import { collectLiveBench } from "../src/sources/livebench.js";
 
 const live = process.env.LIVE_TESTS === "1";
 
@@ -40,4 +41,14 @@ test("live Vals static benchmark snapshot contract", { skip: !live }, async () =
   const observations = result.records.flatMap((record) => record.benchmarks ?? []);
   assert.ok(observations.some((row) => row.benchmark_id === "vals.rsi_index" && row.evidence.status === "derived"));
   assert.ok(observations.some((row) => row.benchmark_id === "vals.poker_agent" && row.metric === "trueskill_rating" && row.unit === "rating"));
+});
+
+test("live LiveBench release table contract", { skip: !live }, async () => {
+  const result = await collectLiveBench();
+  assert.equal(result.status, "ok");
+  assert.ok(result.records.length > 0);
+  assert.ok((result.benchmark_definitions?.length ?? 0) > 0);
+  const observations = result.records.flatMap((record) => record.benchmarks ?? []);
+  assert.ok(observations.some((row) => row.evaluator === "livebench" && row.dataset_version));
+  assert.ok(observations.some((row) => typeof row.metrics?.evaluation_cost_usd === "number"));
 });

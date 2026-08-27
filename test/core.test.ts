@@ -14,6 +14,7 @@ import { MODELS_DB_SCHEMA, assertSnapshotShape } from "../src/schema.js";
 import { collectOpenRouter } from "../src/sources/openrouter.js";
 import { collectBenchGecko, collectCloudPrice } from "../src/sources/enrichment.js";
 import { collectVals, parseValsBenchmarkPage, parseValsCatalog, parseValsRsiBundle } from "../src/sources/vals.js";
+import { collectLiveBench, parseCategories, parseCsv, parseModelLinks } from "../src/sources/livebench.js";
 import type { BenchmarkDefinition, Snapshot, SourceRecord, SourceResult } from "../src/types.js";
 
 test("price normalization preserves dimensions, units, zero and variable values", () => {
@@ -406,6 +407,73 @@ test("Vals preserves task-specific professional benchmark metric semantics", asy
   assert.equal(observations.find((row) => row.benchmark_id === "vals.programbench" && row.variant === "partial")?.metric, "raw_pass_rate");
   assert.equal(observations.find((row) => row.benchmark_id === "vals.hlab" && row.variant === "criteria_pass_rate")?.metric, "criteria_pass_rate");
   assert.equal(observations.find((row) => row.benchmark_id === "vals.time_horizon_index")?.metric, "mission_progress");
+});
+
+test("LiveBench parser preserves release, effort, subtask, and evaluation-cost semantics", async () => {
+  const constants = 'export const RELEASES = ["2025-11-25", "2026-06-25"];';
+  const categories = JSON.stringify({ Reasoning: ["logic"], Coding: ["code_generation"] });
+  const table = [
+    "model,logic,code_generation",
+    "gpt-5.6-sol-max,80,90",
+    "grok-4.6,70,85",
+  ].join("\n");
+  const cost = [
+    "model,logic,code_generation,nq_logic,nq_code_generation,avg_input_tokens,avg_output_tokens,input_price_per_million,output_price_per_million,cost_per_question,cost_per_successful_task",
+    "gpt-5.6-sol-max,2.4,3.6,10,10,1000,200,1,2,0.3,0.5",
+  ].join("\n");
+  const links = `export const modelLinks = {
+    "gpt-5.6-sol-max": {
+        url: "https://platform.openai.com/docs/models/gpt-5.6",
+        organization: "OpenAI",
+        displayName: "GPT-5.6 Sol Max Effort",
+        reasoner: true,
+       variants: [{ rawName: "gpt-5.6-sol-xhigh", displayName: "GPT-5.6 Sol xHigh Effort" }]
+   },
+    "gpt-5.4-high": { organization: "OpenAI", displayName: "GPT-5.4" },
+   "grok-4.6": { organization: "xAI", displayName: "Grok 4.6", reasoner: true }
+};`;
+  assert.deepEqual(parseCsv('model,a\n"x,y",1\n').rows[0], { model: "x,y", a: "1" });
+  assert.deepEqual(parseCategories(categories), { Reasoning: ["logic"], Coding: ["code_generation"] });
+  assert.equal(parseModelLinks(links).get("gpt-5.6-sol-xhigh")?.effort, "xhigh");
+ assert.equal(parseModelLinks(links).get("gpt-5.6-sol-xhigh")?.display_name, "GPT-5.6 Sol xHigh Effort");
+  assert.equal(parseModelLinks(links).get("gpt-5.4-high")?.effort, "high");
+
+  const payloads = new Map([
+    ["src/lib/constants.js", constants],
+    ["public/table_2026_06_25.csv", table],
+    ["public/categories_2026_06_25.json", categories],
+    ["public/cost_2026_06_25.csv", cost],
+    ["src/Table/modelLinks.js", links],
+  ]);
+  const result = await collectLiveBench({
+    fetchImpl: async (input) => {
+      const key = [...payloads.keys()].find((suffix) => String(input).endsWith(suffix));
+      return new Response(key ? payloads.get(key) : "not found", { status: key ? 200 : 404 });
+    },
+  });
+  assert.equal(result.status, "ok");
+  assert.equal(result.replace_previous, true);
+  assert.equal(result.records.length, 2);
+  assert.ok(result.benchmark_definitions?.some((definition) => definition.id === "livebench.logic" && definition.version === "2026-06-25"));
+  const openai = result.records.find((record) => record.id === "openai/gpt-5.6-sol");
+  assert.equal(openai?.name, "GPT-5.6 Sol");
+  const logic = openai?.benchmarks?.find((observation) => observation.benchmark_id === "livebench.logic");
+  assert.equal(logic?.effort, "max");
+  assert.equal(logic?.dataset_version, "2026-06-25");
+  assert.equal(logic?.metrics?.evaluation_cost_usd, 2.4);
+  assert.equal(logic?.metrics?.question_count, 10);
+  assert.equal(logic?.metrics?.cost_per_question_usd, 0.24);
+ assert.equal(openai?.benchmarks?.find((observation) => observation.benchmark_id === "livebench.overall")?.kind, "aggregate");
+ assert.equal(result.records.find((record) => record.name === "Grok 4.6")?.id, "x-ai/grok-4.6");
+  const withoutCost = await collectLiveBench({
+    fetchImpl: async (input) => {
+      const key = [...payloads.keys()].find((suffix) => String(input).endsWith(suffix));
+      if (key?.startsWith("public/cost_")) return new Response("not found", { status: 404 });
+      return new Response(key ? payloads.get(key) : "not found", { status: key ? 200 : 404 });
+    },
+  });
+  assert.equal(withoutCost.status, "ok");
+  assert.equal(withoutCost.warnings?.length, 1);
 });
 
 test("source replacement removes stale Vals-only models and canonical definitions keep their first authoritative fields", () => {

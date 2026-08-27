@@ -5,6 +5,7 @@ import { collectModelsDev } from "./models-dev.js";
 import { collectOpenRouter } from "./openrouter.js";
 import { collectBenchGecko, collectCloudPrice, collectEpoch, collectModelCap, collectPortkey } from "./enrichment.js";
 import { collectVals } from "./vals.js";
+import { collectLiveBench } from "./livebench.js";
 
 export interface SourceAdapter {
   source_id: string;
@@ -23,4 +24,5 @@ export const SOURCE_ADAPTERS: SourceAdapter[] = [
   { source_id: "modelcap", url: "https://modelcap.ai/data/models.json", collect: collectModelCap },
   { source_id: "cloudprice", url: "https://ai.cloudprice.net/api/v1/models", collect: collectCloudPrice },
   { source_id: "vals", url: "https://www.vals.ai/benchmarks", collect: collectVals },
+  { source_id: "livebench", url: "https://github.com/LiveBench/new-livebench/tree/main/public", collect: collectLiveBench },
 ];

@@ -3,6 +3,14 @@ import type { BenchmarkDefinition, BenchmarkKind, BenchmarkObservation } from ".
 // Only aliases that are known to name the same benchmark/version belong here.
 // Similar benchmark families and different revisions must remain separate.
 const ALIASES = new Map<string, string>([
+  ["benchgecko.livebench-overall", "livebench.overall"],
+  ["benchgecko.livebench-reasoning", "livebench.category.reasoning"],
+  ["benchgecko.livebench-coding", "livebench.category.coding"],
+  ["benchgecko.livebench-agentic-coding", "livebench.category.agentic_coding"],
+  ["benchgecko.livebench-mathematics", "livebench.category.mathematics"],
+  ["benchgecko.livebench-data-analysis", "livebench.category.data_analysis"],
+  ["benchgecko.livebench-language", "livebench.category.language"],
+  ["benchgecko.livebench-if", "livebench.category.instruction_following"],
   ["benchgecko.aa-agentic-index", "agentic.aaAgenticIndex"],
   ["artificial_analysis.agentic_index", "agentic.aaAgenticIndex"],
   ["artificial_analysis.artificial_analysis_agentic_index", "agentic.aaAgenticIndex"],

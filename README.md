@@ -80,6 +80,13 @@ Conflicts are not collapsed into an invented single rating.
   token, and workload-spend fields when published. Vals has no documented
   public leaderboard read API, so the refresh reads the structured Astro page
   payloads and fails visibly if their contract changes.
+- [LiveBench](https://livebench.ai) — official release-aware objective
+  subtasks across reasoning, coding, agentic coding, mathematics, data
+  analysis, language, and instruction following, plus published evaluation
+  cost/token metadata. The adapter reads release tables from the
+  [official repository](https://github.com/LiveBench/new-livebench); category
+  and overall values are retained as derived aggregates, while subtasks remain
+  independent benchmark observations.
 - [Epoch AI](https://epoch.ai/benchmarks/use-this-data) — independent
   benchmark and model-compute context with conservative identity joins.
 - [Portkey models](https://github.com/Portkey-AI/models) — pricing supplement
