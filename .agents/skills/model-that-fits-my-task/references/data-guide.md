@@ -104,6 +104,13 @@ methodology explicitly defines an aggregate.
 | Open deployment | `open_weights`, `license` | Open weights and permissive commercial licensing are separate questions. |
 | Freshness | root `generated_at`, `sources[]`, each `evidence` | A fresh snapshot can preserve older evidence from a failed source. |
 
+For agentic recommendations, inspect any route-scoped cache measurement in
+`measurements[]` and its evidence. Most sources publish only cache support and
+prices, so the correct catalog result is often `unknown`. Never synthesize a hit
+rate from `cached_input_ratio`: that field is a workload assumption used for
+cost estimation. Use the operational-validation reference named in `SKILL.md`
+to propose a real repeated-prefix measurement after selection.
+
 Vals business benchmarks add observed task accuracy, run configuration, and
 where published, task-level latency, token counts, and spend. Treat
 `cost_per_test` and `api_cost_usd` as the cost of that evaluation workload, not

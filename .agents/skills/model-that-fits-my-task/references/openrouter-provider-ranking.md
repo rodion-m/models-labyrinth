@@ -40,7 +40,8 @@ The Models Labyrinth workflow does not spend provider credits or create private 
 
 - rank only from current published catalog/API evidence and any telemetry the user explicitly supplies;
 - mark the endpoint order as a hypothesis where the upstream skill calls for real-request verification;
-- include its minimal verification plan, but do not execute probes without separate user authorization;
+- include a workload-shaped verification plan: by default 10 sequential representative requests plus 2 concurrent requests, with first-attempt 429/`Retry-After` capture; do not execute it without separate user authorization;
+- for agentic workloads, inspect any route-scoped cache hit observation and propose a stable-prefix real run that reports request hit rate and token hit ratio;
 - reject latency or throughput values whose source, timestamp, percentile, or unit cannot be verified; empty endpoint stats stay unknown;
 - treat `null` ZDR/data-collection fields and undocumented cache writes as unknown, even when request-time policy flags can be configured;
 - never infer a missing provider metric, cache hit rate, Exacto score, or quantization quality impact.

@@ -28,6 +28,12 @@ For explicit quality-versus-price decisions, the selector also computes a
 strict Pareto front for a named or custom workload. It maximizes task-fit,
 minimizes complete estimated cost, applies an optional quality floor first, and
 keeps unknown-cost choices outside the front instead of treating them as free.
+Every selected route also carries a workload-shaped operational validation
+plan—10 sequential representative requests plus 2 concurrent requests by
+default—with explicit 429/`Retry-After` checks. Agentic recommendations must
+separate cache support/pricing from route-scoped cache hit rate and propose a
+stable-prefix real run when the rate is unknown. The skill never executes these
+credit-spending requests without separate authorization.
 Its business-domain playbook routes finance, legal, healthcare, education,
 public-service, office, SaaS automation, customer-service, HR, IT operations,
 cybersecurity, and modernization workloads to the closest available evidence,

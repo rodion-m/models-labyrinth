@@ -9,7 +9,11 @@ const STATUSES = {
   evidence: new Set(["measured", "declared", "unsupported", "unknown", "not_applicable"]),
   transfer: new Set(["exact", "partial", "unknown"]),
   cost: new Set(["estimated", "unknown"]),
+  cacheHitRate: new Set(["observed", "claimed", "unknown"]),
+  operationalValidation: new Set(["proposed", "completed", "blocked"]),
 };
+
+const WORKLOAD_KINDS = new Set(["interactive", "rag", "agentic", "batch", "other"]);
 
 export function validateDecision(document) {
   const errors = [];
@@ -20,6 +24,7 @@ export function validateDecision(document) {
   document.recommendations.forEach((recommendation, index) => {
     const at = `recommendations[${index}]`;
     requireText(recommendation?.model_id, `${at}.model_id`, errors);
+    validateWorkload(recommendation?.workload, `${at}.workload`, errors);
     requireStatus(recommendation?.offer, STATUSES.offer, `${at}.offer`, errors);
     if (recommendation?.offer?.status === "selected") {
       for (const field of ["provider_id", "provider_model_id", "route"]) {
@@ -42,6 +47,9 @@ export function validateDecision(document) {
       requireStatus(recommendation?.[field], STATUSES.evidence, `${at}.${field}`, errors);
       requireText(recommendation?.[field]?.evidence, `${at}.${field}.evidence`, errors);
     }
+    if (recommendation?.workload?.kind === "agentic") {
+      validateCacheHitRate(recommendation?.cache?.hit_rate, `${at}.cache.hit_rate`, errors);
+    }
 
     requireStatus(recommendation?.quality_transfer, STATUSES.transfer, `${at}.quality_transfer`, errors);
     requireText(recommendation?.quality_transfer?.evidence, `${at}.quality_transfer.evidence`, errors);
@@ -50,12 +58,80 @@ export function validateDecision(document) {
     requireStatus(recommendation?.cost, STATUSES.cost, `${at}.cost`, errors);
     requireText(recommendation?.cost?.assumptions, `${at}.cost.assumptions`, errors);
     requireText(recommendation?.tradeoff, `${at}.tradeoff`, errors);
+    validateOperationalValidation(
+      recommendation?.operational_validation,
+      recommendation?.offer?.status,
+      recommendation?.workload?.kind,
+      `${at}.operational_validation`,
+      errors,
+    );
     if (Object.hasOwn(recommendation ?? {}, "task_fit")) validateTaskFit(recommendation.task_fit, `${at}.task_fit`, errors);
     if (!Array.isArray(recommendation?.sources) || recommendation.sources.length === 0) {
       errors.push(`${at}.sources must be a non-empty array`);
     }
   });
   return errors;
+}
+
+function validateWorkload(value, path, errors) {
+  if (!value || !WORKLOAD_KINDS.has(value.kind)) {
+    errors.push(`${path}.kind must be one of: ${[...WORKLOAD_KINDS].join(", ")}`);
+  }
+  requireText(value?.profile, `${path}.profile`, errors);
+}
+
+function validateCacheHitRate(value, path, errors) {
+  requireStatus(value, STATUSES.cacheHitRate, path, errors);
+  requireOwn(value, "value", `${path}.value`, errors);
+  requireText(value?.scope, `${path}.scope`, errors);
+  requireText(value?.evidence, `${path}.evidence`, errors);
+  if (value?.status === "unknown" && value.value !== null) {
+    errors.push(`${path}.value must be null when status is unknown`);
+  }
+  if (["observed", "claimed"].includes(value?.status)
+    && (typeof value.value !== "number" || !Number.isFinite(value.value) || value.value < 0 || value.value > 1)) {
+    errors.push(`${path}.value must be a finite ratio between 0 and 1 when status is observed or claimed`);
+  }
+}
+
+function validateOperationalValidation(value, offerStatus, workloadKind, path, errors) {
+  requireStatus(value, STATUSES.operationalValidation, path, errors);
+  if (offerStatus === "selected" && value?.status === "blocked") {
+    errors.push(`${path}.status cannot be blocked for a selected offer`);
+  }
+  if (offerStatus !== "selected") {
+    if (value?.status !== "blocked") errors.push(`${path}.status must be blocked while the offer is unresolved`);
+    requireText(value?.reason, `${path}.reason`, errors);
+    return;
+  }
+  for (const [field, minimum] of [["sequential_requests", 1], ["parallel_requests", 2], ["parallel_concurrency", 2]]) {
+    if (!Number.isInteger(value?.[field]) || value[field] < minimum) errors.push(`${path}.${field} must be an integer >= ${minimum}`);
+  }
+  if (Number.isInteger(value?.parallel_requests) && Number.isInteger(value?.parallel_concurrency)
+    && value.parallel_concurrency > value.parallel_requests) {
+    errors.push(`${path}.parallel_concurrency cannot exceed parallel_requests`);
+  }
+  requireText(value?.profile_basis, `${path}.profile_basis`, errors);
+  requireText(value?.acceptance, `${path}.acceptance`, errors);
+  if (!Array.isArray(value?.checks)) {
+    errors.push(`${path}.checks must be an array`);
+  } else {
+    for (const required of ["http_429", "retry_after"]) {
+      if (!value.checks.includes(required)) errors.push(`${path}.checks must include ${required}`);
+    }
+  }
+  if (typeof value?.cache_hit_measurement !== "boolean") errors.push(`${path}.cache_hit_measurement must be a boolean`);
+  if (workloadKind === "agentic" && value?.cache_hit_measurement !== true) {
+    errors.push(`${path}.cache_hit_measurement must be true for agentic workloads`);
+  }
+  if (typeof value?.requires_authorization !== "boolean") errors.push(`${path}.requires_authorization must be a boolean`);
+  if (value?.status === "proposed" && value.requires_authorization !== true) {
+    errors.push(`${path}.requires_authorization must be true while validation is only proposed`);
+  }
+  if (value?.status === "completed") {
+    requireNonNegativeInteger(value?.observations?.attempted_requests, `${path}.observations.attempted_requests`, errors, 1);
+    requireNonNegativeInteger(value?.observations?.http_429_count, `${path}.observations.http_429_count`, errors, 0);
+  }
 }
 
 function validateTaskFit(value, path, errors) {
@@ -90,6 +166,10 @@ function requireText(value, path, errors) {
 
 function requireOwn(value, field, path, errors) {
   if (!value || !Object.hasOwn(value, field)) errors.push(`${path} must be present (null is allowed)`);
+}
+
+function requireNonNegativeInteger(value, path, errors, minimum) {
+  if (!Number.isInteger(value) || value < minimum) errors.push(`${path} must be an integer >= ${minimum}`);
 }
 
 async function main(path) {

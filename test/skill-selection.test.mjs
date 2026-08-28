@@ -17,11 +17,15 @@ import {
 test("skill defaults to competitive and reserves frontier, available, and all for explicit cases", async () => {
   const skill = await readFile(new URL("../.agents/skills/model-that-fits-my-task/SKILL.md", import.meta.url), "utf8");
   const modes = await readFile(new URL("../.agents/skills/model-that-fits-my-task/references/selection-modes.md", import.meta.url), "utf8");
+  const operations = await readFile(new URL("../.agents/skills/model-that-fits-my-task/references/operational-validation.md", import.meta.url), "utf8");
 
   assert.match(skill, /Default to `competitive`/);
   assert.match(skill, /maximum quality.*only the task-relevant frontier cohort/i);
   assert.match(skill, /`scope=all` is almost never appropriate/);
   assert.match(modes, /Price, speed, popularity, or availability cannot rescue a model below the floor/);
+  assert.match(operations, /ten low-cost representative[\s\S]*requests sequentially, then two requests concurrently/i);
+  assert.match(operations, /request hit rate = eligible warm requests with cache-read tokens/i);
+  assert.match(operations, /never executes provider requests.*without separate explicit authorization/is);
 });
 
 test("offline selector parses explicit bounded filters", () => {
@@ -269,7 +273,7 @@ test("bundle downloader reuses a matching content-hash cache without downloading
   }
 });
 
-test("decision validation rejects omitted provider and effort but accepts explicit unknowns", () => {
+test("decision validation requires an operational plan and agentic cache-hit assessment", () => {
   const recommendation = completeRecommendation();
   assert.deepEqual(validateDecision({ recommendations: [recommendation] }), []);
 
@@ -284,6 +288,33 @@ test("decision validation rejects omitted provider and effort but accepts explic
   unknown.reasoning = { status: "unknown", reason: "The provider does not publish named effort support." };
   unknown.runtime = { status: "unknown", evidence: "The endpoint stats response was empty." };
   assert.deepEqual(validateDecision({ recommendations: [unknown] }), []);
+
+  const noOperationalPlan = completeRecommendation();
+  delete noOperationalPlan.operational_validation;
+  assert.ok(validateDecision({ recommendations: [noOperationalPlan] }).some((error) => error.includes("operational_validation.status")));
+
+  const noRateLimitCheck = completeRecommendation();
+  noRateLimitCheck.operational_validation.checks = ["retry_after"];
+  assert.ok(validateDecision({ recommendations: [noRateLimitCheck] }).some((error) => error.includes("http_429")));
+
+  const noCacheHitAssessment = completeRecommendation();
+  delete noCacheHitAssessment.cache.hit_rate;
+  assert.ok(validateDecision({ recommendations: [noCacheHitAssessment] }).some((error) => error.includes("cache.hit_rate.status")));
+
+  const interactive = completeRecommendation();
+  interactive.workload = { kind: "interactive", profile: "chat-short" };
+  delete interactive.cache.hit_rate;
+  interactive.operational_validation.cache_hit_measurement = false;
+  assert.deepEqual(validateDecision({ recommendations: [interactive] }), []);
+
+  const completed = completeRecommendation();
+  completed.operational_validation = {
+    ...completed.operational_validation,
+    status: "completed",
+    requires_authorization: false,
+    observations: { attempted_requests: 12, http_429_count: 0 },
+  };
+  assert.deepEqual(validateDecision({ recommendations: [completed] }), []);
 
   const scored = completeRecommendation();
   scored.task_fit = {
@@ -354,6 +385,7 @@ function offer(provider, capabilities, context, evidence) {
 function completeRecommendation() {
   return {
     model_id: "vendor/model",
+    workload: { kind: "agentic", profile: "agentic-multistep" },
     offer: {
       status: "selected",
       provider_id: "provider",
@@ -364,11 +396,31 @@ function completeRecommendation() {
     },
     reasoning: { status: "selected", effort: "medium" },
     structured_output: { status: "declared", evidence: "Route catalog response." },
-    cache: { status: "unknown", evidence: "Cache-write semantics are not published." },
+    cache: {
+      status: "unknown",
+      evidence: "Cache-write semantics are not published.",
+      hit_rate: {
+        status: "unknown",
+        value: null,
+        scope: "vendor/model × provider route × agentic-multistep",
+        evidence: "No route- and workload-specific cache telemetry is published.",
+      },
+    },
     privacy: { status: "unknown", evidence: "ZDR field is null." },
     runtime: { status: "unknown", evidence: "No route-level samples." },
     quality_transfer: { status: "partial", lane_id: "lane-1", evidence: "Benchmark quantization is unspecified." },
     cost: { status: "estimated", assumptions: "10k input and 1k output tokens; no cache hit assumed." },
+    operational_validation: {
+      status: "proposed",
+      sequential_requests: 10,
+      parallel_requests: 2,
+      parallel_concurrency: 2,
+      profile_basis: "Ten low-cost calls with a stable agent prefix, followed by two concurrent calls.",
+      checks: ["http_429", "retry_after", "provider_route", "cache_hit_rate"],
+      cache_hit_measurement: true,
+      acceptance: "Zero HTTP 429 responses; report request and token cache-hit ratios without hiding retries.",
+      requires_authorization: true,
+    },
     tradeoff: "Route-level runtime remains unmeasured.",
     sources: ["https://example.test/model"],
   };

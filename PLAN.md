@@ -272,6 +272,14 @@ must not be fabricated by this project:
   prompts, concurrency, and an explicit budget, which is outside this
   repository's scope.
 
+The model-selection skill must still propose a bounded, explicitly authorized
+operational validation after choosing an offer. The default is 10 sequential
+representative requests followed by 2 concurrent requests, with first-attempt
+429/`Retry-After` capture. Agentic profiles must inspect any published
+route-scoped cache hit rate and propose stable-prefix measurement when it is
+unknown. Proposed validation is not stored as catalog evidence until the user
+supplies actual observations with route, workload, sample, and time scope.
+
 Use named workload profiles as metadata (`chat-short`, `rag-long-prefix`,
 `agentic-multistep`, `batch-long-output`) only when an actual observation is
 present. A profile is not a score and its input/output/cache distribution
@@ -389,6 +397,9 @@ historical catalog.
    sensitivity check whenever a ranked recommendation is not a pure Pareto result.
 6. Update the data guide, response contract, examples, tests, edit log, skill
    review, trigger tests, duplicate audit, and transfer validation.
+7. Require every recommendation to include a workload-shaped operational
+   validation plan. For agentic work, require cache-hit evidence or explicit
+   unknown plus a repeated-prefix real-run plan.
 
 ### Acceptance criteria
 
