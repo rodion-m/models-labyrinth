@@ -333,6 +333,10 @@ historical catalog.
   explicit task-fit score and minimize complete estimated workload cost across
   concrete offers. Unknown costs stay unranked, and one winner requires a budget,
   minimum quality, or disclosed quality-to-cost preference.
+- **Quality-cost-speed Pareto mode**: add median TTFT (minimize) and median
+  output TPS (maximize) as separate objectives. Require both from one runtime
+  observation and preserve its scope/window; model-scoped speed is not provider
+  evidence.
 - **Frontier mode**: only for an explicit maximum-quality request. Search only
   the task-relevant frontier cohort; report cost without admitting weaker models
   because they are cheaper.
@@ -392,6 +396,8 @@ historical catalog.
    observations by lane, and emits auditable candidates without a universal score.
    It also computes a strict offer-level quality-cost Pareto front for an explicit
    workload and keeps incomplete economics outside the comparable set.
+   Its speed variant keeps TTFT and TPS separate and leaves incomplete runtime
+   evidence unranked.
 5. Forbid transferring scores across model versions and forbid manual mean/median
    aggregation across benchmark conditions. Require explicit weights and a
    sensitivity check whenever a ranked recommendation is not a pure Pareto result.

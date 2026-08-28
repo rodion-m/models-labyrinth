@@ -26,6 +26,7 @@ export function parseSelectionArgs(argv) {
     benchmarks: [],
     scoreDimensions: [],
     pareto: null,
+    speedScope: "offer",
     profile: null,
     workload: {},
     minTaskFit: 0,
@@ -60,7 +61,7 @@ export function parseSelectionArgs(argv) {
       index += 1;
       continue;
     }
-    if (!["--base", "--cache", "--scope", "--min-context", "--limit", "--coverage-penalty", "--pareto", "--profile", "--min-task-fit", "--input-tokens", "--output-tokens", "--cached-input-ratio", "--cache-write-tokens", "--reasoning-tokens", "--requests-per-task"].includes(flag)) {
+    if (!["--base", "--cache", "--scope", "--min-context", "--limit", "--coverage-penalty", "--pareto", "--profile", "--speed-scope", "--min-task-fit", "--input-tokens", "--output-tokens", "--cached-input-ratio", "--cache-write-tokens", "--reasoning-tokens", "--requests-per-task"].includes(flag)) {
       throw new Error(`unknown argument: ${flag}`);
     }
     if (!value) throw new Error(`${flag} requires a value`);
@@ -72,6 +73,7 @@ export function parseSelectionArgs(argv) {
     if (flag === "--coverage-penalty") options.coveragePenalty = parsePositiveNumber(value, flag);
     if (flag === "--pareto") options.pareto = value;
     if (flag === "--profile") options.profile = value;
+    if (flag === "--speed-scope") options.speedScope = value;
     if (flag === "--min-task-fit") options.minTaskFit = parseRange(value, flag, 0, 100);
     if (flag === "--input-tokens") options.workload.input_tokens = parseInteger(value, flag, 0);
     if (flag === "--output-tokens") options.workload.output_tokens = parseInteger(value, flag, 0);
@@ -83,11 +85,12 @@ export function parseSelectionArgs(argv) {
   }
   if (!options.cache) throw new Error("--cache is required");
   if (!new Set(["available", "all"]).has(options.scope)) throw new Error("--scope must be available or all");
-  if (options.pareto && options.pareto !== "quality-cost") throw new Error("--pareto must be quality-cost");
-  if (options.pareto && options.scoreDimensions.length === 0) throw new Error("--pareto quality-cost requires at least one --score dimension");
+  if (options.pareto && !new Set(["quality-cost", "quality-cost-speed"]).has(options.pareto)) throw new Error("--pareto must be quality-cost or quality-cost-speed");
+  if (!new Set(["offer", "model"]).has(options.speedScope)) throw new Error("--speed-scope must be offer or model");
+  if (options.pareto && options.scoreDimensions.length === 0) throw new Error("--pareto requires at least one --score dimension");
   if (options.profile && Object.keys(options.workload).length > 0) throw new Error("--profile cannot be combined with custom workload fields");
   if (options.pareto && !options.profile && (options.workload.input_tokens === undefined || options.workload.output_tokens === undefined)) {
-    throw new Error("--pareto quality-cost requires --profile or both --input-tokens and --output-tokens");
+    throw new Error("--pareto requires --profile or both --input-tokens and --output-tokens");
   }
   return options;
 }
@@ -153,11 +156,12 @@ export function selectCandidates(snapshot, options) {
       record_ids: records.map((model) => model.id).sort(),
       matching_offers: matchingOffers.map(compactOffer),
       observations,
+      runtime_observations: canonical.runtime_observations ?? [],
       incompatible_observation_count: incompatibleObservationCount,
     });
   }
   const scoring = scoreCandidates(candidates, options.scoreDimensions ?? [], options.coveragePenalty ?? 1);
-  const pareto = options.pareto === "quality-cost" ? qualityCostPareto(candidates, snapshot, options) : null;
+  const pareto = options.pareto ? qualityCostPareto(candidates, snapshot, options) : null;
   candidates.sort((left, right) => {
     if (scoring) {
       const scoreOrder = (right.task_fit?.aggregate_score ?? -1) - (left.task_fit?.aggregate_score ?? -1);
@@ -310,7 +314,7 @@ function parseRange(value, name, minimum, maximum) {
 }
 
 function usage() {
-  return "Usage: node scripts/select-models.mjs --cache <directory> [--scope available|all] [--provider id] [--effort level] [--quantization type] [--variant name] [--capability name] [--min-context tokens] [--benchmark id] [--score benchmark-or-lane[=weight][:higher|lower]] [--pareto quality-cost (--profile id | --input-tokens n --output-tokens n) [--min-task-fit 0..100]] [--coverage-penalty n] [--model id] [--limit n] [--base url]";
+  return "Usage: node scripts/select-models.mjs --cache <directory> [--scope available|all] [--provider id] [--effort level] [--quantization type] [--variant name] [--capability name] [--min-context tokens] [--benchmark id] [--score benchmark-or-lane[=weight][:higher|lower]] [--pareto quality-cost|quality-cost-speed (--profile id | --input-tokens n --output-tokens n) [--speed-scope offer|model] [--min-task-fit 0..100]] [--coverage-penalty n] [--model id] [--limit n] [--base url]";
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

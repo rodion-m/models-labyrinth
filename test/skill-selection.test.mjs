@@ -39,6 +39,7 @@ test("offline selector parses explicit bounded filters", () => {
     "--benchmark", "agentic.test",
     "--score", "agentic.test=3:higher",
     "--pareto", "quality-cost",
+    "--speed-scope", "model",
     "--profile", "chat-short",
     "--min-task-fit", "70",
     "--coverage-penalty", "1.5",
@@ -56,6 +57,7 @@ test("offline selector parses explicit bounded filters", () => {
     benchmarks: ["agentic.test"],
     scoreDimensions: [{ target: "agentic.test", weight: 3, direction: "higher" }],
     pareto: "quality-cost",
+    speedScope: "model",
     profile: "chat-short",
     workload: {},
     minTaskFit: 70,
@@ -66,6 +68,7 @@ test("offline selector parses explicit bounded filters", () => {
   });
   assert.throws(() => parseSelectionArgs(["--cache", "/tmp/models", "--scope", "modern"]), /available or all/);
   assert.throws(() => parseSelectionArgs(["--cache", "/tmp/models", "--pareto", "quality-cost"]), /--score/);
+  assert.throws(() => parseSelectionArgs(["--cache", "/tmp/models", "--speed-scope", "gateway"]), /offer or model/);
   assert.throws(() => parseSelectionArgs([]), /--cache is required/);
 });
 
@@ -153,7 +156,7 @@ test("quality-cost Pareto mode keeps only non-dominated offer choices after the 
     benchmarks: [],
     workload_profiles: [{ id: "chat-short", input_tokens: 1000, output_tokens: 100, cached_input_ratio: 0, requests_per_task: 1 }],
     models: [
-      model({ id: "vendor/best", offers: [pricedOffer("premium", 10, 20)], benchmarks: [benchmark(95)], evidence }),
+      model({ id: "vendor/best", offers: [pricedOffer("premium", 10, 20), pricedOffer("premium-alt", 10, 20)], benchmarks: [benchmark(95)], evidence }),
       model({ id: "vendor/value", offers: [pricedOffer("value", 1, 2)], benchmarks: [benchmark(90)], evidence }),
       model({ id: "vendor/dominated", offers: [pricedOffer("slow-value", 2, 4)], benchmarks: [benchmark(85)], evidence }),
       model({ id: "vendor/too-weak", offers: [pricedOffer("freeish", 0.1, 0.1)], benchmarks: [benchmark(20)], evidence }),
@@ -170,10 +173,76 @@ test("quality-cost Pareto mode keeps only non-dominated offer choices after the 
 
   assert.deepEqual(result.pareto_front.map((choice) => choice.canonical_model_id), ["vendor/best", "vendor/value"]);
   assert.equal(result.pareto_front[0].estimated_cost_usd, 0.012);
+  assert.equal(result.pareto_front[0].equivalent_choice_count, 2);
+  assert.deepEqual(result.pareto_front[0].equivalent_offers.map((choice) => choice.provider_id).sort(), ["premium", "premium-alt"]);
   assert.equal(result.pareto_front[1].estimated_cost_usd, 0.0012);
   assert.deepEqual(result.pareto_unranked.map((choice) => choice.canonical_model_id), ["vendor/unknown-cost"]);
   assert.equal(result.meta.pareto.quality_floor, 20);
   assert.equal(result.meta.pareto.excluded_model_count_below_quality_floor, 1);
+});
+
+test("quality-cost-speed Pareto mode treats TTFT and TPS as separate objectives", () => {
+  const evidence = { source_id: "fixture", url: "https://example.test", fetched_at: "2026-08-27T00:00:00.000Z", status: "observed" };
+  const benchmark = (value) => ({ benchmark_id: "coding.current", value, metric: "pass_rate", evidence });
+  const pricedRuntimeOffer = (provider, inputPrice, ttft, tps) => ({
+    ...offer(provider, { tools: true }, 100_000, evidence),
+    id: `${provider}:offer`,
+    pricing: [
+      { dimension: "input", unit: "million_tokens", amount_usd_per_unit: inputPrice, kind: "fixed" },
+      { dimension: "output", unit: "million_tokens", amount_usd_per_unit: 0, kind: "fixed" },
+    ],
+    runtime: [{ scope: "offer", ttft_seconds: { median: ttft }, throughput_tokens_per_second: { median: tps }, evidence }],
+  });
+  const snapshot = {
+    schema_version: "1.0",
+    generated_at: "2026-08-27T00:00:00.000Z",
+    content_hash: "fixture",
+    sources: [],
+    benchmarks: [],
+    workload_profiles: [{ id: "chat-short", input_tokens: 1_000_000, output_tokens: 0, cached_input_ratio: 0, requests_per_task: 1 }],
+    models: [
+      model({ id: "vendor/quality", offers: [pricedRuntimeOffer("quality", 10, 1, 100)], benchmarks: [benchmark(95)], evidence }),
+      model({ id: "vendor/balanced", offers: [pricedRuntimeOffer("balanced", 4, 0.7, 90)], benchmarks: [benchmark(92)], evidence }),
+      model({ id: "vendor/fast-start", offers: [pricedRuntimeOffer("fast-start", 2, 0.5, 80)], benchmarks: [benchmark(90)], evidence }),
+      model({ id: "vendor/dominated", offers: [pricedRuntimeOffer("dominated", 3, 1, 70)], benchmarks: [benchmark(85)], evidence }),
+      model({ id: "vendor/no-speed", offers: [pricedRuntimeOffer("no-speed", 1, 1, 70)], benchmarks: [benchmark(93)], evidence }),
+    ],
+  };
+  snapshot.models.at(-1).offers[0].runtime = [];
+
+  const result = selectCandidates(snapshot, selection({
+    scoreDimensions: [{ target: "coding.current", weight: 1, direction: "higher" }],
+    pareto: "quality-cost-speed",
+    profile: "chat-short",
+    speedScope: "offer",
+  }));
+
+  assert.deepEqual(result.pareto_front.map((choice) => choice.canonical_model_id), [
+    "vendor/quality",
+    "vendor/balanced",
+    "vendor/fast-start",
+  ]);
+  assert.equal(result.pareto_front[1].ttft_seconds, 0.7);
+  assert.equal(result.pareto_front[1].throughput_tokens_per_second, 90);
+  assert.deepEqual(result.pareto_unranked.map((choice) => choice.canonical_model_id), ["vendor/no-speed"]);
+  assert.equal(result.meta.pareto.speed_scope, "offer");
+
+  for (const candidate of snapshot.models) {
+    candidate.runtime_observations = candidate.offers[0].runtime.map((runtime) => ({ ...runtime, scope: "model" }));
+    candidate.offers[0].runtime = [];
+  }
+  const modelScoped = selectCandidates(snapshot, selection({
+    scoreDimensions: [{ target: "coding.current", weight: 1, direction: "higher" }],
+    pareto: "quality-cost-speed",
+    profile: "chat-short",
+    speedScope: "model",
+  }));
+  assert.deepEqual(modelScoped.pareto_front.map((choice) => choice.canonical_model_id), [
+    "vendor/quality",
+    "vendor/balanced",
+    "vendor/fast-start",
+  ]);
+  assert.ok(modelScoped.pareto_front.every((choice) => choice.speed_scope === "model"));
 });
 
 test("offline selection joins only explicit aliases and keeps route constraints on one offer", () => {
@@ -342,6 +411,7 @@ function selection(overrides = {}) {
     scoreDimensions: [],
     coveragePenalty: 1,
     pareto: null,
+    speedScope: "offer",
     profile: null,
     workload: {},
     minTaskFit: 0,

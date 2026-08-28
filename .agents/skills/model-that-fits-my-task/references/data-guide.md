@@ -219,6 +219,27 @@ quality to choose one point from the front.
 Use `--variant default` when batch, flex, preview, or other route variants are
 not acceptable; omit it only when those variants belong in the trade-off set.
 
+Add speed without inventing an aggregate speed score:
+
+```bash
+node scripts/select-models.mjs --cache /tmp/models-labyrinth \
+  --provider openrouter --variant default \
+  --score <quality-lane-id>=1:higher \
+  --pareto quality-cost-speed --profile chat-short \
+  --speed-scope offer --min-task-fit 70
+```
+
+This mode minimizes median TTFT, maximizes median output TPS and quality, and
+minimizes workload cost. Both speed values must come from the same runtime
+observation; missing either places the choice in `pareto_unranked`. The default
+`offer` scope is appropriate for provider selection. Use `--speed-scope model`
+only as an explicitly labeled model-level approximation when route metrics are
+absent; never present it as provider speed. Median and p50 are treated as the
+same statistic, but other percentiles and windows are not mixed.
+Objective-equivalent routes are returned as one Pareto point with
+`equivalent_choice_count` and `equivalent_offers`, so equal provider choices do
+not crowd more informative trade-off points out of the result limit.
+
 If custom analysis still exceeds the selector, parse the snapshot once in one
 process and build only the indexes needed for the question. Do not repeatedly
 parse the full file for every candidate. Typical joins are:

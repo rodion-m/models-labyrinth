@@ -1,5 +1,6 @@
 export function qualityCostPareto(candidates, snapshot, options) {
   const workload = resolveWorkload(snapshot.workload_profiles ?? [], options);
+  const includesSpeed = options.pareto === "quality-cost-speed";
   const comparable = [];
   const unranked = [];
   let excludedBelowQualityFloor = 0;
@@ -19,6 +20,7 @@ export function qualityCostPareto(candidates, snapshot, options) {
     }
     for (const offer of candidate.matching_offers) {
       const cost = estimateWorkloadCost(offer, workload);
+      const speed = includesSpeed ? representativeSpeed(candidate, offer, options.speedScope) : null;
       for (const reasoningEffort of configurationsForOffer(offer, options.efforts)) {
         const choice = {
           canonical_model_id: candidate.canonical_model_id,
@@ -35,9 +37,12 @@ export function qualityCostPareto(candidates, snapshot, options) {
           estimated_cost_usd: cost.estimated_cost_usd,
           cost_components: cost.components,
           pricing_evidence: offer.evidence ?? [],
+          ...(speed ?? {}),
         };
         if (cost.estimated_cost_usd === null) {
           unranked.push({ ...choice, unranked_reason: `cost is incomplete: ${cost.missing_dimensions.join(", ")}` });
+        } else if (includesSpeed && speed === null) {
+          unranked.push({ ...choice, unranked_reason: `speed is incomplete: median TTFT and TPS are required at ${options.speedScope} scope` });
         } else {
           comparable.push(choice);
         }
@@ -47,9 +52,14 @@ export function qualityCostPareto(candidates, snapshot, options) {
 
   const byPreference = (left, right) => right.quality_score - left.quality_score
     || left.estimated_cost_usd - right.estimated_cost_usd
+    || (includesSpeed ? left.ttft_seconds - right.ttft_seconds : 0)
+    || (includesSpeed ? right.throughput_tokens_per_second - left.throughput_tokens_per_second : 0)
     || left.canonical_model_id.localeCompare(right.canonical_model_id)
     || left.offer_id.localeCompare(right.offer_id);
-  const front = nonDominatedFront(comparable, byPreference);
+  const frontChoices = includesSpeed
+    ? multiObjectiveFront(comparable, byPreference)
+    : nonDominatedFront(comparable, byPreference);
+  const front = groupEquivalentChoices(frontChoices, includesSpeed);
   unranked.sort((left, right) => left.canonical_model_id.localeCompare(right.canonical_model_id)
     || String(left.offer_id ?? "").localeCompare(String(right.offer_id ?? "")));
 
@@ -57,17 +67,78 @@ export function qualityCostPareto(candidates, snapshot, options) {
     front,
     unranked,
     meta: {
-      mode: "quality-cost",
-      objective: "maximize task-fit quality and minimize estimated workload cost",
-      dominance: "A dominates B when quality(A) >= quality(B), cost(A) <= cost(B), and at least one inequality is strict",
+      mode: options.pareto,
+      objective: includesSpeed
+        ? "maximize task-fit quality and TPS; minimize estimated workload cost and TTFT"
+        : "maximize task-fit quality and minimize estimated workload cost",
+      dominance: includesSpeed
+        ? "A dominates B when quality and TPS are no worse, cost and TTFT are no worse, and at least one objective is strictly better"
+        : "A dominates B when quality(A) >= quality(B), cost(A) <= cost(B), and at least one inequality is strict",
+      ...(includesSpeed ? { speed_scope: options.speedScope, speed_statistic: "median (p50 accepted as equivalent)" } : {}),
       quality_floor: options.minTaskFit,
       workload,
       comparable_choice_count: comparable.length,
-      pareto_front_choice_count: front.length,
+      pareto_front_choice_count: frontChoices.length,
+      pareto_point_count: front.length,
       excluded_model_count_below_quality_floor: excludedBelowQualityFloor,
       unranked_choice_count: unranked.length,
     },
   };
+}
+
+function groupEquivalentChoices(choices, includesSpeed) {
+  const groups = new Map();
+  for (const choice of choices) {
+    const key = JSON.stringify([
+      choice.quality_score,
+      choice.estimated_cost_usd,
+      ...(includesSpeed ? [choice.ttft_seconds, choice.throughput_tokens_per_second, choice.speed_scope] : []),
+    ]);
+    const group = groups.get(key) ?? [];
+    group.push(choice);
+    groups.set(key, group);
+  }
+  return [...groups.values()].map((group) => ({
+    ...group[0],
+    equivalent_choice_count: group.length,
+    equivalent_offers: group.map((choice) => ({
+      offer_id: choice.offer_id,
+      provider_id: choice.provider_id,
+      provider_model_id: choice.provider_model_id,
+      variant: choice.variant,
+      quantization: choice.quantization,
+      reasoning_effort: choice.reasoning_effort,
+    })),
+  }));
+}
+
+function representativeSpeed(candidate, offer, scope) {
+  const observations = scope === "offer" ? offer.runtime ?? [] : candidate.runtime_observations ?? [];
+  return observations.flatMap((observation) => {
+    const ttft = runtimeMetric(observation, "ttft");
+    const throughput = runtimeMetric(observation, "throughput");
+    if (!Number.isFinite(ttft) || ttft < 0 || !Number.isFinite(throughput) || throughput <= 0) return [];
+    return [{
+      ttft_seconds: ttft,
+      throughput_tokens_per_second: throughput,
+      speed_scope: scope,
+      speed_window: observation.window ?? null,
+      speed_evidence: observation.evidence,
+    }];
+  }).sort((left, right) => evidenceReliability(right.speed_evidence?.status) - evidenceReliability(left.speed_evidence?.status)
+    || String(right.speed_evidence?.fetched_at ?? "").localeCompare(String(left.speed_evidence?.fetched_at ?? "")))[0] ?? null;
+}
+
+function runtimeMetric(observation, metric) {
+  const series = metric === "ttft" ? observation.ttft_seconds : observation.throughput_tokens_per_second;
+  const direct = series?.median ?? series?.p50;
+  if (Number.isFinite(direct)) return Number(direct);
+  const metrics = observation.metrics ?? {};
+  const keys = metric === "ttft"
+    ? ["median-time-to-first-token-seconds", "median-time-to-first-answer-token-seconds", "median_time_to_first_token_seconds", "ttft"]
+    : ["median-output-tokens-per-second", "median_output_tokens_per_second", "tokens_per_second"];
+  const value = keys.map((key) => metrics[key]).find(Number.isFinite);
+  return value === undefined ? null : Number(value);
 }
 
 function resolveWorkload(profiles, options) {
@@ -164,6 +235,32 @@ function nonDominatedFront(choices, ordering) {
     }
   }
   return front;
+}
+
+function multiObjectiveFront(choices, ordering) {
+  const front = [];
+  for (const choice of [...choices].sort(ordering)) {
+    if (!front.some((other) => speedDominates(other, choice))) front.push(choice);
+  }
+  return front;
+}
+
+function speedDominates(left, right) {
+  return left.quality_score >= right.quality_score
+    && left.estimated_cost_usd <= right.estimated_cost_usd
+    && left.ttft_seconds <= right.ttft_seconds
+    && left.throughput_tokens_per_second >= right.throughput_tokens_per_second
+    && (left.quality_score > right.quality_score
+      || left.estimated_cost_usd < right.estimated_cost_usd
+      || left.ttft_seconds < right.ttft_seconds
+      || left.throughput_tokens_per_second > right.throughput_tokens_per_second);
+}
+
+function evidenceReliability(status) {
+  if (status === "observed") return 1;
+  if (status === "derived") return 0.7;
+  if (status === "claimed") return 0.4;
+  return 0.25;
 }
 
 function configurationsForOffer(offer, requestedEfforts) {

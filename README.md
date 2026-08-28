@@ -28,6 +28,12 @@ For explicit quality-versus-price decisions, the selector also computes a
 strict Pareto front for a named or custom workload. It maximizes task-fit,
 minimizes complete estimated cost, applies an optional quality floor first, and
 keeps unknown-cost choices outside the front instead of treating them as free.
+The `quality-cost-speed` mode adds median TTFT and output TPS as independent
+objectives—TTFT is minimized and TPS maximized—without hiding them behind one
+speed score. Route-scoped speed is the default; explicit model scope remains an
+approximation and never becomes provider evidence.
+Routes with identical known objective values are grouped as equivalent offers
+instead of filling the result page with duplicate Pareto points.
 Every selected route also carries a workload-shaped operational validation
 plan—10 sequential representative requests plus 2 concurrent requests by
 default—with explicit 429/`Retry-After` checks. Agentic recommendations must
