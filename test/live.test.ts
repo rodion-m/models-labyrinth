@@ -6,6 +6,8 @@ import { collectOpenRouter } from "../src/sources/openrouter.js";
 import { collectArtificialAnalysis } from "../src/sources/artificial-analysis.js";
 import { collectVals } from "../src/sources/vals.js";
 import { collectLiveBench } from "../src/sources/livebench.js";
+import { collectOpenAsrEnglishLongform, collectOpenAsrEnglishShortform, collectOpenAsrMultilingual } from "../src/sources/open-asr.js";
+import { collectArtificialAnalysisSpeechToText, collectPipecatStt } from "../src/sources/speech.js";
 
 const live = process.env.LIVE_TESTS === "1";
 
@@ -31,6 +33,35 @@ test("live Artificial Analysis contract is key-gated", { skip: !live || !process
   const result = await collectArtificialAnalysis();
   assert.equal(result.status, "ok");
   assert.ok(result.records.length > 0);
+});
+
+test("live Artificial Analysis STT free contract is key-gated", { skip: !live || !process.env.AA_API_KEY }, async () => {
+  const result = await collectArtificialAnalysisSpeechToText();
+  assert.equal(result.status, "ok");
+  assert.ok(result.records.length > 0);
+  assert.ok(result.records.some((record) => (record.benchmarks?.length ?? 0) > 0));
+});
+
+test("live Pipecat STT README contract", { skip: !live }, async () => {
+  const result = await collectPipecatStt();
+  assert.equal(result.status, "ok");
+  assert.ok(result.records.length > 0);
+  assert.ok(result.records.some((record) => record.offers?.some((offer) => offer.runtime.length > 0)));
+  assert.ok(result.records.some((record) => record.aliases?.some((value) => value.kind === "service_key")));
+});
+
+test("live Open ASR CSV contracts", { skip: !live }, async () => {
+  const results = await Promise.all([
+    collectOpenAsrMultilingual(),
+    collectOpenAsrEnglishShortform(),
+    collectOpenAsrEnglishLongform(),
+  ]);
+  for (const result of results) {
+    assert.equal(result.status, "ok");
+    assert.ok(result.records.length > 0);
+    assert.ok((result.benchmark_definitions?.length ?? 0) > 0);
+  }
+  assert.ok(results[0].records.some((record) => record.benchmarks?.some((row) => row.configuration?.language === "de")));
 });
 
 test("live Vals static benchmark snapshot contract", { skip: !live }, async () => {

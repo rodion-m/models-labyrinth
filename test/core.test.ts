@@ -15,6 +15,8 @@ import { collectOpenRouter } from "../src/sources/openrouter.js";
 import { collectBenchGecko, collectCloudPrice } from "../src/sources/enrichment.js";
 import { collectVals, parseValsBenchmarkPage, parseValsCatalog, parseValsRsiBundle } from "../src/sources/vals.js";
 import { collectLiveBench, parseCategories, parseCsv, parseModelLinks } from "../src/sources/livebench.js";
+import { collectOpenAsrMultilingual, collectOpenAsrEnglishShortform } from "../src/sources/open-asr.js";
+import { collectArtificialAnalysisSpeechToText, collectPipecatStt, parsePipecatResults, parsePipecatServiceRegistry } from "../src/sources/speech.js";
 import type { BenchmarkDefinition, Snapshot, SourceRecord, SourceResult } from "../src/types.js";
 
 test("price normalization preserves dimensions, units, zero and variable values", () => {
@@ -274,6 +276,86 @@ test("source parser accepts real OpenRouter-shaped payload with no endpoint fan-
   assert.equal(collected.records[0].offers?.length, 0);
   assert.equal(collected.replace_previous, true);
   assert.equal(calls.length, 1);
+});
+
+test("Pipecat STT parser keeps provider/model slugs and streaming metrics", async () => {
+  const readme = [
+    "Benchmark results on 2 samples from the `smart-turn-data-v3.1-train` dataset.",
+    "<!-- RESULTS_TABLE:START -->",
+    "| Vendor | Model | Transcripts | Perfect | WER Mean | Pooled WER | TTFS Median | TTFS P95 | TTFS P99 |",
+    "|--------|-------|-------------|---------|----------|------------|-------------|----------|----------|",
+    "| Test Vendor | model-x | 99.0% | 80.0% | 2.50% | 2.00% | 280ms | 400ms | 500ms |",
+    "| Broken | model-y | n/a | 80.0% | 2.50% | 2.00% | 280ms | 400ms | 500ms |",
+    "<!-- RESULTS_TABLE:END -->",
+  ].join("\n");
+  const parsed = parsePipecatResults(readme);
+  assert.equal(parsed.rows.length, 1);
+  assert.equal(parsed.sampleCount, 2);
+  assert.equal(parsed.dataset, "smart-turn-data-v3.1-train");
+  assert.equal(parsed.skippedRows, 1);
+
+  const services = [
+    '"test_vendor_model_x": ServiceDefinition(',
+    '  factory=create_test,',
+    '  vendor="Test Vendor",',
+    '  model_label="model-x",',
+    '),',
+  ].join("\n");
+  const collected = await collectPipecatStt({ fetchImpl: async (input) => new Response(String(input).endsWith("services.py") ? services : readme) });
+  assert.equal(collected.records.length, 1);
+  assert.equal(collected.records[0].id, "test-vendor/model-x");
+  assert.equal(collected.records[0].offers?.[0].provider_id, "test-vendor");
+  assert.equal(collected.records[0].offers?.[0].runtime[0].metrics?.ttfs_p95_ms, 400);
+  assert.equal(collected.records[0].benchmarks?.find((row) => row.metric === "semantic_wer_mean")?.value, 2.5);
+  assert.equal(collected.records[0].aliases?.find((value) => value.kind === "service_key")?.id, "test_vendor_model_x");
+  assert.equal(collected.records[0].benchmarks?.find((row) => row.metric === "semantic_wer_mean")?.configuration?.service_key, "test_vendor_model_x");
+  assert.equal(collected.benchmark_definitions?.length, 4);
+});
+
+test("Pipecat registry preserves upstream service keys as aliases", () => {
+  const registry = parsePipecatServiceRegistry([
+    '"assemblyai_universal_3_5_pro": ServiceDefinition(',
+    '  factory=create_assemblyai_universal_3_5_pro,',
+    '  vendor="AssemblyAI",',
+    '  model_label="universal-3-5-pro",',
+    '),',
+  ].join("\n"));
+  assert.equal(registry.get("assemblyai\u0000universal-3-5-pro"), "assemblyai_universal_3_5_pro");
+});
+
+test("Open ASR adapters preserve per-language WER lanes and ignore unavailable RTFx", async () => {
+  const multilingual = "model,Model size (B),RTFx,de_covost,fr_fleurs,Avg\norg/model,1.2,-1,4.5,5.5,5.0\n";
+  const collected = await collectOpenAsrMultilingual({ fetchImpl: async () => new Response(multilingual) });
+  assert.equal(collected.records[0].id, "org/model");
+  assert.equal(collected.records[0].benchmarks?.length, 3);
+  assert.equal(collected.records[0].benchmarks?.find((row) => row.benchmark_id.endsWith("de-covost"))?.configuration?.language, "de");
+  assert.equal(collected.records[0].runtime_observations?.[0].metrics?.rtfx, undefined);
+
+  const shortform = "model,Avg. WER,RTFx,Model size (B),License,AMI WER\norg/model,4.0,100,1.2,Open,3.0\n";
+  const english = await collectOpenAsrEnglishShortform({ fetchImpl: async () => new Response(shortform) });
+  assert.equal(english.records[0].open_weights, true);
+  assert.equal(english.records[0].benchmarks?.find((row) => row.benchmark_id.endsWith("ami-wer"))?.configuration?.language, "en");
+  assert.equal(english.records[0].runtime_observations?.[0].metrics?.rtfx, 100);
+});
+
+test("Artificial Analysis STT free adapter normalizes the overall WER index without inventing routes", async () => {
+  const payload = {
+    tier: "free",
+    data: [{ id: "aa-1", name: "Universal-3.5 Pro, AssemblyAI", model_creator: { name: "AssemblyAI" }, aa_wer_index: 0.024 }],
+  };
+  const collected = await collectArtificialAnalysisSpeechToText({
+    apiKey: "test-key",
+    fetchImpl: async (input, init) => {
+      assert.equal(String(input), "https://artificialanalysis.ai/api/v2/media/speech-to-text/models/free");
+      assert.equal(new Headers(init?.headers).get("x-api-key"), "test-key");
+      return new Response(JSON.stringify(payload));
+    },
+  });
+  assert.equal(collected.records[0].id, "assemblyai/universal-3-5-pro");
+  assert.equal(collected.records[0].offers?.length, 0);
+  assert.equal(collected.records[0].benchmarks?.[0].value, 2.4);
+  assert.equal(collected.records[0].benchmarks?.[0].unit, "percent");
+  assert.equal(collected.benchmark_definitions?.[0].id, "artificial_analysis_stt.aa_wer_index");
 });
 
 test("OpenRouter propagates model expiration to provider offers", async () => {

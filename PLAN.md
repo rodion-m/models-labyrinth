@@ -113,6 +113,10 @@ it is never presented as a new benchmark measurement.
 - Artificial Analysis free API when `AA_API_KEY` is available: headline
   indices, median performance, and model pricing. This project is internal;
   source attribution and the account's internal-use terms still apply.
+- Speech sources: Artificial Analysis STT free WER index, Pipecat's published
+  English streaming provider/model table, and Open ASR's published English and
+  multilingual WER/RTFx CSVs. These are separate source observations; they do
+  not become one blended speech leaderboard.
 - Vals public benchmark pages: professional finance, legal, healthcare,
   education, coding, agentic, and academic results together with published
   evaluation conditions and workload spend. There is no documented public
@@ -298,6 +302,9 @@ is:
 | [Models.dev](https://models.dev) | model/provider facts, limits, modalities, structured output, tools, reasoning options, cache/audio/tier prices |
 | [BenchLM data](https://www.benchlm.ai/data) | benchmark/price/speed snapshot; preserve its own aggregation and mark AA-derived rows |
 | [Artificial Analysis Data API](https://artificialanalysis.ai/data-api/docs) | key-gated indices, median performance, and pricing; useful internally when the account tier permits it |
+| [Artificial Analysis Speech to Text](https://artificialanalysis.ai/speech-to-text/non-streaming) | free overall AA-WER index; full endpoint adds provider prices/speed and per-dataset WER but is tier-gated; current methodology is English-oriented |
+| [Pipecat STT Benchmark](https://github.com/pipecat-ai/stt-benchmark) | provider/model streaming semantic WER, transcript rates, and TTFS percentiles from its published English README table |
+| [Hugging Face Open ASR Leaderboard](https://github.com/huggingface/open_asr_leaderboard) | public English short/long-form and multilingual WER/RTFx CSVs; the current multilingual result table has explicit German, French, Italian, Spanish, and Portuguese lanes |
 | [Vals benchmarks](https://www.vals.ai/benchmarks) | professional and agentic benchmark snapshots, including task variants and published effort, harness, provider, latency, token, and workload-spend conditions; static page contract rather than a documented read API |
 | [LiveBench](https://github.com/LiveBench/new-livebench) | release-versioned objective subtask scores, effort variants, category/overall aggregates, and optional evaluation cost/token metadata; official raw GitHub files rather than a separate API |
 | [Epoch AI benchmark data](https://epoch.ai/benchmarks/use-this-data) | independent benchmark/model-compute context, with explicit attribution and conservative identity joins |

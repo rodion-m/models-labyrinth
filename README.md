@@ -93,6 +93,21 @@ Conflicts are not collapsed into an invented single rating.
   — headline indices, median performance, and pricing when `AA_API_KEY` is
   available. The key is never stored in git or the snapshot; this deployment
   is intended for internal use.
+- [Artificial Analysis Speech to Text](https://artificialanalysis.ai/speech-to-text/non-streaming)
+  — the free API adds the overall AA-WER index for STT models. Provider-level
+  price/speed and per-dataset WER remain tier-gated; the adapter keeps that
+  limitation explicit instead of fabricating routes.
+- [Pipecat STT Benchmark](https://github.com/pipecat-ai/stt-benchmark) —
+  provider/model streaming results with semantic WER, transcript success,
+  perfect-transcript rate, and TTFS median/P95/P99. The current published set
+  is English-only and is consumed from its upstream README table. The adapter
+  also preserves the repository's service-registry keys as aliases, while
+  keeping the published provider/model label as the route identity.
+- [Hugging Face Open ASR Leaderboard](https://github.com/huggingface/open_asr_leaderboard)
+  — published short-form and long-form WER/RTFx CSVs, including explicit
+  per-language multilingual lanes. The current multilingual CSV publishes
+  German, French, Italian, Spanish, and Portuguese results; absent language
+  values remain absent rather than being inferred.
 - [Vals benchmarks](https://www.vals.ai/benchmarks) — public evaluation
   snapshots for finance, legal, healthcare, education, coding, agentic, and
   academic tasks, including run-level effort, harness, provider, latency,
@@ -228,6 +243,12 @@ If a source is temporarily unavailable, its status becomes `error` or
 `skipped` and previous data is preserved. An empty catalog is treated as an
 error; if all sources fail, the file is not replaced. A new snapshot is
 validated first, then written through a temporary file and atomic rename.
+
+Speech observations are intentionally not interchangeable with text-model
+quality scores. STT WER is lower-is-better and carries its dataset/language
+lane; Pipecat TTFS is a streaming end-of-speech latency measure, while Open ASR
+RTFx is a local benchmark throughput measure. None of these fields imply
+provider availability or a live route unless an offer is separately present.
 
 ## GitHub Actions and deployment
 

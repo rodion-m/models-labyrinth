@@ -125,6 +125,21 @@ aggregates; do not count them as extra task votes. Its evaluation cost, average
 token, and published input/output price fields describe the benchmark run, not
 a current provider route quote.
 
+Speech-to-text evidence needs an explicit language and operating mode. WER is
+lower-is-better and must not be compared across different datasets, languages,
+normalizers, or streaming/batch conditions. Pipecat's published STT benchmark
+is an English-only streaming comparison of provider/model routes: its semantic
+WER and transcript rates are quality signals, while TTFS percentiles describe
+time from end-of-speech to final transcription; TTFS is not TTFT. Open ASR
+publishes model-level English short-form/long-form tracks and a multilingual
+track with separate current CSV lanes for German, French, Italian, Spanish, and
+Portuguese; its RTFx is a fixed-H200 benchmark runtime, not provider API
+throughput. The Artificial Analysis free STT endpoint currently exposes an
+overall AA-WER index only; do not infer a provider route, price, speed, or
+language score from it. For multilingual work, prefer the exact target-language
+lane, disclose a coverage gap when it is absent, and never treat an aggregate
+average as evidence for every language.
+
 ## Provenance and confidence
 
 Every important observation should carry `evidence.source_id`, `url`, `fetched_at`, and `status`. `observed` means the adapter read it from that source. `derived` means the source or catalog republished or transformed another source; inspect `derived_from`. `stale` means retained older data.
