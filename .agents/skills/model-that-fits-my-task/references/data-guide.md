@@ -156,7 +156,7 @@ one-off parsers:
 ```bash
 node scripts/select-models.mjs \
   --cache /tmp/models-labyrinth \
-  --scope current \
+  --scope available \
   --provider openrouter \
   --effort high \
   --quantization fp8 \
@@ -177,7 +177,7 @@ then rerun with exact lane IDs and explicit weights:
 
 ```bash
 node scripts/select-models.mjs --cache /tmp/models-labyrinth \
-  --provider openrouter --effort high \
+  --provider openrouter --variant default --effort high \
   --score <lane-id>=3:higher \
   --score <another-lane-id>=1:higher \
   --coverage-penalty 1
@@ -188,6 +188,29 @@ weighted score, evidence coverage, a coverage-adjusted aggregate, confidence,
 cohort sizes, and per-lane contributions. A benchmark name that maps to multiple
 lanes is rejected until one exact lane is chosen. This is a task-relative score,
 not a universal model rating.
+
+For an explicit quality-versus-price request, add a complete workload and build
+the non-dominated front after choosing exact comparison lanes:
+
+```bash
+node scripts/select-models.mjs --cache /tmp/models-labyrinth \
+  --provider openrouter --effort high \
+  --score <quality-lane-id>=3:higher \
+  --score <distinct-required-lane-id>=1:higher \
+  --pareto quality-cost --profile agentic-multistep \
+  --min-task-fit 70 --limit 25
+```
+
+Use `--input-tokens`, `--output-tokens`, `--cached-input-ratio`,
+`--cache-write-tokens`, `--reasoning-tokens`, and `--requests-per-task` instead
+of `--profile` for a custom workload. `--min-task-fit` is a 0–100 floor on the
+cohort-relative aggregate score, not a raw benchmark threshold. The output
+keeps `pareto_front` and `pareto_unranked` separate. It never treats missing,
+ambiguous, scheduled, or incomplete prices as zero. The Pareto mode does not
+invent a single “best value” winner: apply a budget or minimum acceptable
+quality to choose one point from the front.
+Use `--variant default` when batch, flex, preview, or other route variants are
+not acceptable; omit it only when those variants belong in the trade-off set.
 
 If custom analysis still exceeds the selector, parse the snapshot once in one
 process and build only the indexes needed for the question. Do not repeatedly

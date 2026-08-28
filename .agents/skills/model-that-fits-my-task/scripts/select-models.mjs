@@ -6,6 +6,7 @@ import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
 import { DEFAULT_BASE, download } from "./download-snapshot.mjs";
+import { qualityCostPareto } from "./quality-cost-pareto.mjs";
 import { parsePositiveNumber, parseScoreDimension, scoreCandidates } from "./task-fit-score.mjs";
 
 export { scoreCandidates } from "./task-fit-score.mjs";
@@ -20,9 +21,14 @@ export function parseSelectionArgs(argv) {
     providers: [],
     efforts: [],
     quantizations: [],
+    variants: [],
     capabilities: [],
     benchmarks: [],
     scoreDimensions: [],
+    pareto: null,
+    profile: null,
+    workload: {},
+    minTaskFit: 0,
     coveragePenalty: 1,
     models: [],
     minContext: 0,
@@ -32,6 +38,7 @@ export function parseSelectionArgs(argv) {
     ["--provider", "providers"],
     ["--effort", "efforts"],
     ["--quantization", "quantizations"],
+    ["--variant", "variants"],
     ["--capability", "capabilities"],
     ["--benchmark", "benchmarks"],
     ["--model", "models"],
@@ -53,7 +60,7 @@ export function parseSelectionArgs(argv) {
       index += 1;
       continue;
     }
-    if (!["--base", "--cache", "--scope", "--min-context", "--limit", "--coverage-penalty"].includes(flag)) {
+    if (!["--base", "--cache", "--scope", "--min-context", "--limit", "--coverage-penalty", "--pareto", "--profile", "--min-task-fit", "--input-tokens", "--output-tokens", "--cached-input-ratio", "--cache-write-tokens", "--reasoning-tokens", "--requests-per-task"].includes(flag)) {
       throw new Error(`unknown argument: ${flag}`);
     }
     if (!value) throw new Error(`${flag} requires a value`);
@@ -63,10 +70,25 @@ export function parseSelectionArgs(argv) {
     if (flag === "--min-context") options.minContext = parseInteger(value, flag, 0);
     if (flag === "--limit") options.limit = parseInteger(value, flag, 1);
     if (flag === "--coverage-penalty") options.coveragePenalty = parsePositiveNumber(value, flag);
+    if (flag === "--pareto") options.pareto = value;
+    if (flag === "--profile") options.profile = value;
+    if (flag === "--min-task-fit") options.minTaskFit = parseRange(value, flag, 0, 100);
+    if (flag === "--input-tokens") options.workload.input_tokens = parseInteger(value, flag, 0);
+    if (flag === "--output-tokens") options.workload.output_tokens = parseInteger(value, flag, 0);
+    if (flag === "--cached-input-ratio") options.workload.cached_input_ratio = parseRange(value, flag, 0, 1);
+    if (flag === "--cache-write-tokens") options.workload.cache_write_tokens = parseInteger(value, flag, 0);
+    if (flag === "--reasoning-tokens") options.workload.reasoning_tokens = parseInteger(value, flag, 0);
+    if (flag === "--requests-per-task") options.workload.requests_per_task = parseInteger(value, flag, 1);
     index += 1;
   }
   if (!options.cache) throw new Error("--cache is required");
   if (!new Set(["available", "all"]).has(options.scope)) throw new Error("--scope must be available or all");
+  if (options.pareto && options.pareto !== "quality-cost") throw new Error("--pareto must be quality-cost");
+  if (options.pareto && options.scoreDimensions.length === 0) throw new Error("--pareto quality-cost requires at least one --score dimension");
+  if (options.profile && Object.keys(options.workload).length > 0) throw new Error("--profile cannot be combined with custom workload fields");
+  if (options.pareto && !options.profile && (options.workload.input_tokens === undefined || options.workload.output_tokens === undefined)) {
+    throw new Error("--pareto quality-cost requires --profile or both --input-tokens and --output-tokens");
+  }
   return options;
 }
 
@@ -135,6 +157,7 @@ export function selectCandidates(snapshot, options) {
     });
   }
   const scoring = scoreCandidates(candidates, options.scoreDimensions ?? [], options.coveragePenalty ?? 1);
+  const pareto = options.pareto === "quality-cost" ? qualityCostPareto(candidates, snapshot, options) : null;
   candidates.sort((left, right) => {
     if (scoring) {
       const scoreOrder = (right.task_fit?.aggregate_score ?? -1) - (left.task_fit?.aggregate_score ?? -1);
@@ -147,6 +170,10 @@ export function selectCandidates(snapshot, options) {
   });
   return {
     data: candidates.slice(0, options.limit),
+    ...(pareto ? {
+      pareto_front: pareto.front.slice(0, options.limit),
+      pareto_unranked: pareto.unranked.slice(0, options.limit),
+    } : {}),
     meta: {
       total: candidates.length,
       limit: options.limit,
@@ -155,6 +182,7 @@ export function selectCandidates(snapshot, options) {
       generated_at: snapshot.generated_at,
       content_hash: snapshot.content_hash,
       scoring,
+      ...(pareto ? { pareto: pareto.meta } : {}),
     },
   };
 }
@@ -212,7 +240,7 @@ function isAvailableOffer(offer, generatedAt) {
 
 function hasOfferFilters(options) {
   return options.providers.length > 0 || options.efforts.length > 0 || options.quantizations.length > 0
-    || options.capabilities.length > 0 || options.minContext > 0;
+    || (options.variants ?? []).length > 0 || options.capabilities.length > 0 || options.minContext > 0;
 }
 
 function offerMatches(offer, options, generatedAt) {
@@ -220,6 +248,7 @@ function offerMatches(offer, options, generatedAt) {
   if (options.providers.length > 0 && !options.providers.includes(String(offer.provider_id).toLowerCase())) return false;
   if (options.efforts.length > 0 && !options.efforts.some((effort) => (offer.reasoning_efforts ?? []).map((value) => value.toLowerCase()).includes(effort))) return false;
   if (options.quantizations.length > 0 && !options.quantizations.includes(String(offer.quantization ?? "").toLowerCase())) return false;
+  if ((options.variants ?? []).length > 0 && !options.variants.includes(String(offer.variant ?? "default").toLowerCase())) return false;
   if (options.minContext > 0 && (offer.context_tokens ?? 0) < options.minContext) return false;
   return options.capabilities.every((capability) =>
     offer.capabilities?.[capability] === true
@@ -272,8 +301,16 @@ function parseInteger(value, name, minimum) {
   return parsed;
 }
 
+function parseRange(value, name, minimum, maximum) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed < minimum || parsed > maximum) {
+    throw new Error(`${name} must be a finite number between ${minimum} and ${maximum}`);
+  }
+  return parsed;
+}
+
 function usage() {
-  return "Usage: node scripts/select-models.mjs --cache <directory> [--scope available|all] [--provider id] [--effort level] [--quantization type] [--capability name] [--min-context tokens] [--benchmark id] [--score benchmark-or-lane[=weight][:higher|lower]] [--coverage-penalty n] [--model id] [--limit n] [--base url]";
+  return "Usage: node scripts/select-models.mjs --cache <directory> [--scope available|all] [--provider id] [--effort level] [--quantization type] [--variant name] [--capability name] [--min-context tokens] [--benchmark id] [--score benchmark-or-lane[=weight][:higher|lower]] [--pareto quality-cost (--profile id | --input-tokens n --output-tokens n) [--min-task-fit 0..100]] [--coverage-penalty n] [--model id] [--limit n] [--base url]";
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

@@ -321,6 +321,10 @@ historical catalog.
 - **Competitive mode**: the normal task-conditioned decision. Apply hard gates
   and a relevant quality floor, then compare non-dominated offer × effort pairs
   on workload economics and operations.
+- **Quality-cost Pareto mode**: after the competitive quality gate, maximize the
+  explicit task-fit score and minimize complete estimated workload cost across
+  concrete offers. Unknown costs stay unranked, and one winner requires a budget,
+  minimum quality, or disclosed quality-to-cost preference.
 - **Frontier mode**: only for an explicit maximum-quality request. Search only
   the task-relevant frontier cohort; report cost without admitting weaker models
   because they are cheaper.
@@ -378,6 +382,8 @@ historical catalog.
 4. Add one offline selection script that downloads or reuses a content-hash keyed
    bundle, parses it once, resolves only source-proven aliases, groups benchmark
    observations by lane, and emits auditable candidates without a universal score.
+   It also computes a strict offer-level quality-cost Pareto front for an explicit
+   workload and keeps incomplete economics outside the comparable set.
 5. Forbid transferring scores across model versions and forbid manual mean/median
    aggregation across benchmark conditions. Require explicit weights and a
    sensitivity check whenever a ranked recommendation is not a pure Pareto result.

@@ -24,6 +24,10 @@ task-relative score from exact comparison lanes and user-visible weights. The
 result always exposes observed percentile quality, benchmark coverage,
 confidence, cohort size, and per-lane contributions rather than hiding them in
 one opaque number.
+For explicit quality-versus-price decisions, the selector also computes a
+strict Pareto front for a named or custom workload. It maximizes task-fit,
+minimizes complete estimated cost, applies an optional quality floor first, and
+keeps unknown-cost choices outside the front instead of treating them as free.
 Its business-domain playbook routes finance, legal, healthcare, education,
 public-service, office, SaaS automation, customer-service, HR, IT operations,
 cybersecurity, and modernization workloads to the closest available evidence,

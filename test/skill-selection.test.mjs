@@ -30,9 +30,13 @@ test("offline selector parses explicit bounded filters", () => {
     "--provider", "OpenRouter",
     "--effort", "high",
     "--quantization", "fp8",
+    "--variant", "default",
     "--capability", "tools",
     "--benchmark", "agentic.test",
     "--score", "agentic.test=3:higher",
+    "--pareto", "quality-cost",
+    "--profile", "chat-short",
+    "--min-task-fit", "70",
     "--coverage-penalty", "1.5",
     "--min-context", "200000",
     "--limit", "3",
@@ -43,15 +47,21 @@ test("offline selector parses explicit bounded filters", () => {
     providers: ["openrouter"],
     efforts: ["high"],
     quantizations: ["fp8"],
+    variants: ["default"],
     capabilities: ["tools"],
     benchmarks: ["agentic.test"],
     scoreDimensions: [{ target: "agentic.test", weight: 3, direction: "higher" }],
+    pareto: "quality-cost",
+    profile: "chat-short",
+    workload: {},
+    minTaskFit: 70,
     coveragePenalty: 1.5,
     models: [],
     minContext: 200000,
     limit: 3,
   });
   assert.throws(() => parseSelectionArgs(["--cache", "/tmp/models", "--scope", "modern"]), /available or all/);
+  assert.throws(() => parseSelectionArgs(["--cache", "/tmp/models", "--pareto", "quality-cost"]), /--score/);
   assert.throws(() => parseSelectionArgs([]), /--cache is required/);
 });
 
@@ -118,6 +128,48 @@ test("task-fit scoring refuses to blend multiple comparison lanes behind one ben
     { benchmark_id: "coding.a", lane_id: "lane-high", effort: "high", value: 20, evidence },
   ] }];
   assert.throws(() => scoreCandidates(candidates, [{ target: "coding.a", weight: 1, direction: "higher" }]), /spans 2 comparison lanes/);
+});
+
+test("quality-cost Pareto mode keeps only non-dominated offer choices after the quality floor", () => {
+  const evidence = { source_id: "fixture", url: "https://example.test", fetched_at: "2026-08-27T00:00:00.000Z", status: "observed" };
+  const benchmark = (value) => ({ benchmark_id: "coding.current", value, metric: "pass_rate", evidence });
+  const pricedOffer = (provider, input, output) => ({
+    ...offer(provider, { tools: true }, 100_000, evidence),
+    id: `${provider}:offer`,
+    pricing: [
+      { dimension: "input", unit: "million_tokens", amount_usd_per_unit: input, kind: "fixed" },
+      { dimension: "output", unit: "million_tokens", amount_usd_per_unit: output, kind: "fixed" },
+    ],
+  });
+  const snapshot = {
+    schema_version: "1.0",
+    generated_at: "2026-08-27T00:00:00.000Z",
+    content_hash: "fixture",
+    sources: [],
+    benchmarks: [],
+    workload_profiles: [{ id: "chat-short", input_tokens: 1000, output_tokens: 100, cached_input_ratio: 0, requests_per_task: 1 }],
+    models: [
+      model({ id: "vendor/best", offers: [pricedOffer("premium", 10, 20)], benchmarks: [benchmark(95)], evidence }),
+      model({ id: "vendor/value", offers: [pricedOffer("value", 1, 2)], benchmarks: [benchmark(90)], evidence }),
+      model({ id: "vendor/dominated", offers: [pricedOffer("slow-value", 2, 4)], benchmarks: [benchmark(85)], evidence }),
+      model({ id: "vendor/too-weak", offers: [pricedOffer("freeish", 0.1, 0.1)], benchmarks: [benchmark(20)], evidence }),
+      model({ id: "vendor/unknown-cost", offers: [offer("unknown", { tools: true }, 100_000, evidence)], benchmarks: [benchmark(92)], evidence }),
+    ],
+  };
+
+  const result = selectCandidates(snapshot, selection({
+    scoreDimensions: [{ target: "coding.current", weight: 1, direction: "higher" }],
+    pareto: "quality-cost",
+    profile: "chat-short",
+    minTaskFit: 20,
+  }));
+
+  assert.deepEqual(result.pareto_front.map((choice) => choice.canonical_model_id), ["vendor/best", "vendor/value"]);
+  assert.equal(result.pareto_front[0].estimated_cost_usd, 0.012);
+  assert.equal(result.pareto_front[1].estimated_cost_usd, 0.0012);
+  assert.deepEqual(result.pareto_unranked.map((choice) => choice.canonical_model_id), ["vendor/unknown-cost"]);
+  assert.equal(result.meta.pareto.quality_floor, 20);
+  assert.equal(result.meta.pareto.excluded_model_count_below_quality_floor, 1);
 });
 
 test("offline selection joins only explicit aliases and keeps route constraints on one offer", () => {
@@ -253,8 +305,15 @@ function selection(overrides = {}) {
     providers: [],
     efforts: [],
     quantizations: [],
+    variants: [],
     capabilities: [],
     benchmarks: [],
+    scoreDimensions: [],
+    coveragePenalty: 1,
+    pareto: null,
+    profile: null,
+    workload: {},
+    minTaskFit: 0,
     models: [],
     minContext: 0,
     limit: 25,
