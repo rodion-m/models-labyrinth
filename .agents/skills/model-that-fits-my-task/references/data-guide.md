@@ -125,6 +125,16 @@ aggregates; do not count them as extra task votes. Its evaluation cost, average
 token, and published input/output price fields describe the benchmark run, not
 a current provider route quote.
 
+ParseBench and ExtractBench are document-processing benchmark feeds, not
+provider catalogs. ParseBench observations use `variant` for tables, charts,
+content faithfulness, semantic formatting, and visual grounding; its published
+cost columns are normalized to `metrics.evaluation_cost_usd_per_page` from
+cents/page. ExtractBench uses `variant` for short, medium, and long documents
+and keeps precision, recall, word/page grounding, per-document latency, and
+USD/page evaluation cost in `metrics`. A row with no exact model identifier is
+an unresolved evaluation-system record with no offer; do not recommend it as a
+deployable route or infer provider availability from its score.
+
 Speech-to-text evidence needs an explicit language and operating mode. WER is
 lower-is-better and must not be compared across different datasets, languages,
 normalizers, or streaming/batch conditions. Pipecat's published STT benchmark

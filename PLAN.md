@@ -127,6 +127,12 @@ it is never presented as a new benchmark measurement.
   following, with published effort variants and optional evaluation cost/token
   metadata. Category and overall values are derived aggregates, not extra
   independent benchmark votes.
+- ParseBench and ExtractBench official leaderboard CSVs: document parsing and
+  schema-guided extraction observations with dimension/length splits, grounding,
+  precision/recall, latency, and evaluation cost. Exact `HF_Model_ID` joins are
+  retained; pipeline rows without one stay unresolved benchmark-only records
+  and never become provider offers. Their adapters are part of the same
+  twice-daily refresh, with ParseBench cents/page converted to USD/page.
 - Epoch AI public model/benchmark downloads: independent benchmark and
   model-compute metadata where the join is strong enough. It is an enrichment
   source and may remain unmatched instead of causing a risky fuzzy merge.
@@ -307,6 +313,8 @@ is:
 | [Hugging Face Open ASR Leaderboard](https://github.com/huggingface/open_asr_leaderboard) | public English short/long-form and multilingual WER/RTFx CSVs; the current multilingual result table has explicit German, French, Italian, Spanish, and Portuguese lanes |
 | [Vals benchmarks](https://www.vals.ai/benchmarks) | professional and agentic benchmark snapshots, including task variants and published effort, harness, provider, latency, token, and workload-spend conditions; static page contract rather than a documented read API |
 | [LiveBench](https://github.com/LiveBench/new-livebench) | release-versioned objective subtask scores, effort variants, category/overall aggregates, and optional evaluation cost/token metadata; official raw GitHub files rather than a separate API |
+| [ParseBench](https://github.com/run-llama/ParseBench) | official document-parsing CSV: overall and five dimension scores plus per-page evaluation cost; exact HF model ids are joined, while pipeline-only rows remain unresolved benchmark records |
+| [ExtractBench](https://github.com/run-llama/ExtractBench) | official schema-guided extraction CSV: overall/length-split unified value F1, precision/recall, grounding, latency, and USD/page evaluation cost; pipeline rows remain benchmark-only unless an exact model id is present |
 | [Epoch AI benchmark data](https://epoch.ai/benchmarks/use-this-data) | independent benchmark/model-compute context, with explicit attribution and conservative identity joins |
 | [Portkey pricing configs](https://github.com/Portkey-AI/models) | optional extra price dimensions such as batch/cache/audio/image/search/thinking; no quality or runtime claims |
 | BenchGecko, ModelCap, CloudPrice | optional derived cross-checks; never count their overlapping AA/OpenRouter values as independent measurements |

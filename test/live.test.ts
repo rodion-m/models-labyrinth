@@ -8,6 +8,7 @@ import { collectVals } from "../src/sources/vals.js";
 import { collectLiveBench } from "../src/sources/livebench.js";
 import { collectOpenAsrEnglishLongform, collectOpenAsrEnglishShortform, collectOpenAsrMultilingual } from "../src/sources/open-asr.js";
 import { collectArtificialAnalysisSpeechToText, collectPipecatStt } from "../src/sources/speech.js";
+import { collectExtractBench, collectParseBench } from "../src/sources/document-benchmarks.js";
 
 const live = process.env.LIVE_TESTS === "1";
 
@@ -82,4 +83,20 @@ test("live LiveBench release table contract", { skip: !live }, async () => {
   const observations = result.records.flatMap((record) => record.benchmarks ?? []);
   assert.ok(observations.some((row) => row.evaluator === "livebench" && row.dataset_version));
   assert.ok(observations.some((row) => typeof row.metrics?.evaluation_cost_usd === "number"));
+});
+
+test("live ParseBench CSV contract", { skip: !live }, async () => {
+  const result = await collectParseBench();
+  assert.equal(result.status, "ok");
+  assert.ok(result.records.length > 0);
+  assert.equal(result.benchmark_definitions?.[0].id, "document.parseBench");
+  assert.ok(result.records.some((record) => record.benchmarks?.some((row) => row.variant === "tables")));
+});
+
+test("live ExtractBench CSV contract", { skip: !live }, async () => {
+  const result = await collectExtractBench();
+  assert.equal(result.status, "ok");
+  assert.ok(result.records.length > 0);
+  assert.equal(result.benchmark_definitions?.[0].id, "document.extractBench");
+  assert.ok(result.records.some((record) => record.benchmarks?.some((row) => row.variant === "long" && typeof row.metrics?.latency_seconds_per_document === "number")));
 });

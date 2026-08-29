@@ -8,6 +8,7 @@ import { collectVals } from "./vals.js";
 import { collectLiveBench } from "./livebench.js";
 import { collectOpenAsrEnglishLongform, collectOpenAsrEnglishShortform, collectOpenAsrMultilingual } from "./open-asr.js";
 import { collectArtificialAnalysisSpeechToText, collectPipecatStt } from "./speech.js";
+import { collectExtractBench, collectParseBench } from "./document-benchmarks.js";
 
 export interface SourceAdapter {
   source_id: string;
@@ -32,4 +33,6 @@ export const SOURCE_ADAPTERS: SourceAdapter[] = [
   { source_id: "open_asr_multilingual", url: "https://raw.githubusercontent.com/huggingface/open_asr_leaderboard/main/scripts/data/multilingual.csv", collect: collectOpenAsrMultilingual },
   { source_id: "open_asr_en_shortform", url: "https://raw.githubusercontent.com/huggingface/open_asr_leaderboard/main/scripts/data/en_shortform.csv", collect: collectOpenAsrEnglishShortform },
   { source_id: "open_asr_en_longform", url: "https://raw.githubusercontent.com/huggingface/open_asr_leaderboard/main/scripts/data/en_longform.csv", collect: collectOpenAsrEnglishLongform },
+  { source_id: "parsebench", url: "https://github.com/run-llama/ParseBench", collect: collectParseBench },
+  { source_id: "extractbench", url: "https://github.com/run-llama/ExtractBench", collect: collectExtractBench },
 ];

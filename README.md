@@ -121,6 +121,15 @@ Conflicts are not collapsed into an invented single rating.
   [official repository](https://github.com/LiveBench/new-livebench); category
   and overall values are retained as derived aggregates, while subtasks remain
   independent benchmark observations.
+- [ParseBench](https://github.com/run-llama/ParseBench) and
+  [ExtractBench](https://github.com/run-llama/ExtractBench) — official raw
+  leaderboard CSVs for document processing. ParseBench covers tables, charts,
+  content faithfulness, semantic formatting, and visual grounding; ExtractBench
+  covers schema-guided value F1 by document length plus precision/recall,
+  grounding, latency, and evaluation cost. ParseBench costs are normalized from
+  cents/page to USD/page; ExtractBench costs are already USD/page. Rows without
+  an exact model identifier remain benchmark-only unresolved records and never
+  become provider offers.
 - [Epoch AI](https://epoch.ai/benchmarks/use-this-data) — independent
   benchmark and model-compute context with conservative identity joins.
 - [Portkey models](https://github.com/Portkey-AI/models) — pricing supplement
@@ -257,6 +266,10 @@ started manually. Add `AA_API_KEY` and, if needed, `OPENROUTER_API_KEY` as
 repository or environment secrets. The workflow refreshes the data, runs the
 tests, builds the static projection, commits a changed `models_db.json`, and
 publishes GitHub Pages in the same job.
+
+ParseBench and ExtractBench are ordinary registered adapters, so both CSVs are
+refetched on every scheduled run without any additional secret or workflow
+step.
 
 On Vercel, a new snapshot enters the runtime only after a new deployment. The
 in-process cache lasts for the instance lifetime; a new deployment is the
