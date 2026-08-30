@@ -1,6 +1,10 @@
-# Models Labyrinth
+# model-that-fits-my-task
 
-A source-aware catalog and model-selection atlas covering models, provider
+An agent skill for choosing AI models and provider routes for your task,
+backed by the **Models Labyrinth** API service. The service keeps its existing
+name and URL: https://models-labyrinth.vercel.app/api/v1.
+
+The repository includes a source-aware catalog and model-selection atlas covering models, provider
 routes, prices, reasoning efforts, benchmark scores, and published runtime
 metrics. The snapshot is refreshed twice a day by GitHub Actions, and API
 reads make no network requests.

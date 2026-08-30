@@ -4,7 +4,7 @@ import { access, mkdir, readFile, rename, rm, writeFile } from "node:fs/promises
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
-export const DEFAULT_BASE = "https://rodion-m.github.io/models-labyrinth/api/v1";
+export const DEFAULT_BASE = "https://rodion-m.github.io/model-that-fits-my-task/api/v1";
 const MANIFEST_FILE = "bundle.json";
 
 export function parseArgs(argv) {

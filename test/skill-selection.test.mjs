@@ -46,7 +46,7 @@ test("offline selector parses explicit bounded filters", () => {
     "--min-context", "200000",
     "--limit", "3",
   ]), {
-    base: "https://rodion-m.github.io/models-labyrinth/api/v1",
+    base: "https://rodion-m.github.io/model-that-fits-my-task/api/v1",
     cache: "/tmp/models",
     scope: "available",
     providers: ["openrouter"],

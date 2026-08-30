@@ -10,9 +10,9 @@ Recommend a deployable `model × provider offer × configuration` from published
 ## Data access
 
 - Query API: `https://models-labyrinth.vercel.app/api/v1`
-- Static mirror: `https://rodion-m.github.io/models-labyrinth/api/v1`
-- Full snapshot: `https://rodion-m.github.io/models-labyrinth/api/v1/snapshot.json`
-- JSON Schema: `https://rodion-m.github.io/models-labyrinth/api/v1/schema.json`
+- Static mirror: `https://rodion-m.github.io/model-that-fits-my-task/api/v1`
+- Full snapshot: `https://rodion-m.github.io/model-that-fits-my-task/api/v1/snapshot.json`
+- JSON Schema: `https://rodion-m.github.io/model-that-fits-my-task/api/v1/schema.json`
 
 Use Vercel for filters and GitHub Pages for full downloads. Start with `/health`; report `generated_at` and failed/stale sources. `scope=available` is a deployability inventory, not a shortlist; `scope=all` is almost never appropriate except for explicit historical or audit work.
 
