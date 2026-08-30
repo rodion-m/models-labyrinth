@@ -121,6 +121,19 @@ Conflicts are not collapsed into an invented single rating.
   [official repository](https://github.com/LiveBench/new-livebench); category
   and overall values are retained as derived aggregates, while subtasks remain
   independent benchmark observations.
+- [Arena](https://arena.ai/leaderboard) — latest model-level blind pairwise
+  human-preference ratings from the official
+  [LMSYS leaderboard dataset](https://huggingface.co/datasets/lmarena-ai/leaderboard-dataset).
+  Text, factuality, vision, search, document, web-development, image, and
+  video configurations are fetched from the Hugging Face rows API. Agent
+  configurations are excluded because they measure a model plus an agent
+  harness. Ratings retain votes, confidence bounds, variance, rank, publish
+  date, and configuration; they are not treated as objective task accuracy.
+- [ForecastBench](https://forecastbench.org/leaderboards/) — current official
+  baseline leaderboard for model-only probabilistic forecasting. Dataset,
+  market, and overall Brier Index observations retain confidence intervals,
+  sample counts, model variants, and effort suffixes. Tool-enabled tournament
+  rows and pseudo-baselines are excluded from the model feed.
 - [ParseBench](https://github.com/run-llama/ParseBench) and
   [ExtractBench](https://github.com/run-llama/ExtractBench) — official raw
   leaderboard CSVs for document processing. ParseBench covers tables, charts,
@@ -142,6 +155,24 @@ The database contains only data from network sources. The project does not run
 local benchmarks, probes, or its own error/latency/cache-hit measurements.
 Therefore, `measurements[]` is populated only when an upstream source actually
 publishes the corresponding facts.
+
+### Benchmark admission policy
+
+The primary model-quality layer admits a feed only when it has a current
+published result, a stable machine-readable source suitable for the twice-daily
+refresh, an identifiable model-level evaluation scope, explicit metric and
+version/condition metadata, and source provenance. Human-preference ratings
+(Arena) and objective task scores (for example LiveBench or ForecastBench)
+remain separate comparison families; the API never blends them into one
+universal leaderboard.
+
+Current code-review, agent, and harness benchmarks are not automatically added
+just because their methodology is interesting. CR-Bench, c-CRAB, CodeReviewBench,
+PRBench, and similar evaluations measure a model together with context,
+tooling, an agent loop, or a judge. They are valuable for a separate system-level
+layer, but their current public score feeds are either not model-only or are not
+stable/machine-readable enough for this repository's automated refresh. They
+remain documented watchlist candidates until that boundary is explicit.
 
 ## API
 

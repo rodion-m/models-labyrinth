@@ -127,6 +127,17 @@ it is never presented as a new benchmark measurement.
   following, with published effort variants and optional evaluation cost/token
   metadata. Category and overall values are derived aggregates, not extra
   independent benchmark votes.
+- Arena latest model-level snapshots from the official LMSYS leaderboard
+  dataset: blind pairwise human-preference ratings across text, factuality,
+  vision, search, document, web-development, image, and video configurations.
+  Vote count, confidence bounds, variance, rank, publish date, and style-control
+  configuration are retained. Agent Arena configurations are excluded because
+  they measure a model plus a harness.
+- ForecastBench's current baseline feed: model-only probabilistic forecasting
+  scores for dataset, market, and overall dimensions. Brier Index, confidence
+  intervals, sample counts, variants, and effort suffixes are retained. The
+  tool-enabled tournament and pseudo-baselines are excluded from the model-level
+  feed.
 - ParseBench and ExtractBench official leaderboard CSVs: document parsing and
   schema-guided extraction observations with dimension/length splits, grounding,
   precision/recall, latency, and evaluation cost. Exact `HF_Model_ID` joins are
@@ -148,6 +159,25 @@ Excluded as independent sources: aggregators that simply re-publish
 Artificial Analysis or OpenRouter data without adding provenance. They may be
 added later as cross-check adapters, but must not increase apparent benchmark
 independence.
+
+### Additional benchmark research and admission decisions
+
+The benchmark gate is deliberately stricter than "has a leaderboard": a source
+must provide current model measurements, a stable feed for cron, explicit
+conditions/metric semantics, and enough provenance to avoid comparing unlike
+lanes. Arena is mature as a large-scale preference signal, but it is not an
+accuracy benchmark. ForecastBench is mature for its narrower forecasting task,
+and its baseline track is suitable for model-level comparisons; its tournament
+track is system-level and stays out of the primary model feed.
+
+CR-Bench, c-CRAB, CodeReviewBench, PRBench, JSONSchemaBench, and current Scale
+Labs evaluations were reviewed as candidates. Their methodologies can be
+useful, but the available public score surfaces are system/harness evaluations,
+dataset-only repositories, private/undocumented, or protected leaderboard pages
+rather than stable model-score feeds. They therefore remain watchlist items,
+not partially implemented adapters. This avoids silently turning an agent or
+judge result into a model capability claim. A future system-evaluation layer can
+add them with explicit `kind: claim`/`aggregate` semantics and run metadata.
 
 ## API surface
 

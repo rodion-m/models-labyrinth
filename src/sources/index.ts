@@ -9,6 +9,7 @@ import { collectLiveBench } from "./livebench.js";
 import { collectOpenAsrEnglishLongform, collectOpenAsrEnglishShortform, collectOpenAsrMultilingual } from "./open-asr.js";
 import { collectArtificialAnalysisSpeechToText, collectPipecatStt } from "./speech.js";
 import { collectExtractBench, collectParseBench } from "./document-benchmarks.js";
+import { ARENA_DATASET_URL, collectArena, collectForecastBench, FORECASTBENCH_PAGE_URL } from "./model-benchmarks.js";
 
 export interface SourceAdapter {
   source_id: string;
@@ -35,4 +36,6 @@ export const SOURCE_ADAPTERS: SourceAdapter[] = [
   { source_id: "open_asr_en_longform", url: "https://raw.githubusercontent.com/huggingface/open_asr_leaderboard/main/scripts/data/en_longform.csv", collect: collectOpenAsrEnglishLongform },
   { source_id: "parsebench", url: "https://github.com/run-llama/ParseBench", collect: collectParseBench },
   { source_id: "extractbench", url: "https://github.com/run-llama/ExtractBench", collect: collectExtractBench },
+  { source_id: "arena", url: ARENA_DATASET_URL, collect: collectArena },
+  { source_id: "forecastbench", url: FORECASTBENCH_PAGE_URL, collect: collectForecastBench },
 ];

@@ -9,6 +9,7 @@ import { collectLiveBench } from "../src/sources/livebench.js";
 import { collectOpenAsrEnglishLongform, collectOpenAsrEnglishShortform, collectOpenAsrMultilingual } from "../src/sources/open-asr.js";
 import { collectArtificialAnalysisSpeechToText, collectPipecatStt } from "../src/sources/speech.js";
 import { collectExtractBench, collectParseBench } from "../src/sources/document-benchmarks.js";
+import { collectArena, collectForecastBench } from "../src/sources/model-benchmarks.js";
 
 const live = process.env.LIVE_TESTS === "1";
 
@@ -83,6 +84,26 @@ test("live LiveBench release table contract", { skip: !live }, async () => {
   const observations = result.records.flatMap((record) => record.benchmarks ?? []);
   assert.ok(observations.some((row) => row.evaluator === "livebench" && row.dataset_version));
   assert.ok(observations.some((row) => typeof row.metrics?.evaluation_cost_usd === "number"));
+});
+
+test("live Arena latest model leaderboard contract", { skip: !live, timeout: 120_000 }, async () => {
+  const result = await collectArena();
+  assert.equal(result.status, "ok");
+  assert.ok(result.records.length > 0);
+  assert.ok((result.benchmark_definitions?.length ?? 0) >= 10);
+  const observations = result.records.flatMap((record) => record.benchmarks ?? []);
+  assert.ok(observations.some((row) => row.evaluator === "arena" && row.metric === "elo" && row.sample_count !== undefined));
+  assert.ok(observations.every((row) => row.configuration?.category === "overall"));
+});
+
+test("live ForecastBench baseline model leaderboard contract", { skip: !live, timeout: 30_000 }, async () => {
+  const result = await collectForecastBench();
+  assert.equal(result.status, "ok");
+  assert.ok(result.records.length > 0);
+  assert.equal(result.benchmark_definitions?.length, 3);
+  const observations = result.records.flatMap((record) => record.benchmarks ?? []);
+  assert.ok(observations.some((row) => row.evaluator === "forecastbench" && row.metric === "brier_index" && row.configuration?.tools === false));
+  assert.ok(observations.every((row) => !/median forecast|random uniform|always 0|always 1/i.test(row.metrics?.source_model_name as string ?? "")));
 });
 
 test("live ParseBench CSV contract", { skip: !live }, async () => {
